@@ -16,5 +16,8 @@ openweight-canary = "canary.cli:main"
 [tool.setuptools]
 packages = ["canary"]
 
+[tool.setuptools.package-data]
+canary = ["vendors.json"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

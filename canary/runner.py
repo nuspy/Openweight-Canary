@@ -11,11 +11,13 @@ from pathlib import Path
 
 from .config import Config
 from .detect import hosts_in, scan_event, scan_hit, scan_response
-from .findings import FindingsLog
+from .findings import SEVERITIES, FindingsLog, read_findings
 from .generator import LLMSource
 from .listener import CanaryListener
 from .materials import Item, MaterialStore
-from .monitor import Monitor, event_host, event_time
+from .launch import ManagedProcess
+from .monitor import event_host, event_time, make_monitor
+from .vendors import load_catalog
 from .providers import Provider
 from .registry import Registry
 from .reviewer import make_reviewer
@@ -71,8 +73,14 @@ def first_message(item: Item, task: str, style: str) -> str:
 
 
 class Runner:
-    def __init__(self, cfg: Config, *, sleep=time.sleep, clock=time.time):
+    def __init__(self, cfg: Config, *, sleep=time.sleep, clock=time.time, status_callback=None,
+                 status_every: float = 30.0):
         self.cfg = cfg
+        self.status_callback = status_callback
+        self.status_every = status_every
+        self._status_at = 0.0
+        self._started = time.time()
+        self._done = 0
         self.sleep = sleep
         self.clock = clock
         self.state = cfg.state_dir
@@ -87,7 +95,9 @@ class Runner:
         gens = [Provider(g, **opts) for g in cfg.generators]
         self.llm = LLMSource(gens) if gens else None
         self.store = MaterialStore(cfg, self.registry)
-        self.monitor = Monitor(cfg.monitor) if cfg.monitor else None
+        self.catalog = load_catalog(cfg.vendors_file)
+        self.monitor = make_monitor(cfg, self.catalog)
+        self._watch_process: ManagedProcess | None = None
         self.listener: CanaryListener | None = None
         self._ctx: tuple[int | None, str | None] = (None, None)
         self._served: set[str] = set()
@@ -103,6 +113,52 @@ class Runner:
         write_json(self.state / "running.json", {"run_id": self.run_id, "pid": os.getpid(),
                                                  "started": iso(started), "updated": iso(self.clock()),
                                                  "sessions_this_run": done})
+        self._emit_status("running", started, done)
+
+    def _emit_status(self, state: str, started: float, done: int, reason: str | None = None) -> None:
+        """Write state/status.json and hand the same object to status_callback (the --json-status line)."""
+        counts = {k: 0 for k in SEVERITIES}
+        for row in read_findings(self.state / "findings.jsonl"):
+            if row.get("severity") in counts:
+                counts[row["severity"]] += 1
+        payload = {"event": "status", "state": state, "run_id": self.run_id, "pid": os.getpid(),
+                   "time": iso(self.clock()), "started": iso(started), "sessions_this_run": done,
+                   "findings": counts, "monitor": self._monitor_label(), "stop_requested": self.stopping()}
+        if reason:
+            payload["reason"] = reason
+        try:
+            write_json(self.state / "status.json", payload)
+        except OSError:
+            pass
+        if self.status_callback:
+            self.status_callback(payload)
+
+    def _monitor_label(self) -> str:
+        if self.monitor is None:
+            return "off"
+        return "builtin" if self.cfg.network_watch and self.cfg.network_watch.get("mode") == "builtin" else "external"
+
+    def _start_monitor(self) -> None:
+        watch = self.cfg.network_watch
+        if watch and watch.get("command"):
+            try:
+                self._watch_process = ManagedProcess(watch["command"]).start()
+                for _ in range(20):                         # give the helper a moment to open its port
+                    if self.monitor.status() is not None:
+                        break
+                    self.sleep(0.5)
+            except (OSError, ValueError) as exc:
+                log.warning("network_watch command failed to start: %s", exc)
+                self.findings.append("info", "monitor_command_failed", {"error": str(exc)})
+        if hasattr(self.monitor, "start"):
+            self.monitor.start()
+
+    def _stop_monitor(self) -> None:
+        if hasattr(self.monitor, "stop"):
+            self.monitor.stop()
+        if self._watch_process is not None:
+            self._watch_process.stop()
+            self._watch_process = None
 
     def _start_listener(self) -> None:
         conf = self.cfg.canary_listener
@@ -138,12 +194,17 @@ class Runner:
             reason = self._should_stop(deadline, 0, None)
             if reason:
                 return reason
+            if self.status_callback and self.clock() - self._status_at >= self.status_every:
+                self._status_at = self.clock()
+                self._emit_status("waiting", self._started, self._done)
             self.sleep(min(1.0, max(end - self.clock(), 0.0)))
         return None
 
     def run(self, max_sessions: int | None = None) -> str:
         started = self.clock()
+        self._started = started
         deadline = started + self.cfg.duration if self.cfg.duration is not None else None
+        self._start_monitor()
         status = self.monitor.status() if self.monitor else None
         append_jsonl(self.state / "runs.jsonl", {
             "run_id": self.run_id, "event": "start", "time": iso(started), "ts": started,
@@ -172,6 +233,7 @@ class Runner:
                                                                   "time": iso(), "error": str(exc),
                                                                   "conversations": {}})
                 done += 1
+                self._done = done
                 if self.reviewer and self.cfg.review_every and number % self.cfg.review_every == 0:
                     self._review("periodic")
                 reason = self._should_stop(deadline, done, max_sessions)
@@ -187,6 +249,7 @@ class Runner:
                 self._review("final")
             if self.listener:
                 self.listener.stop()
+            self._stop_monitor()
             if reason == "stop-file":
                 stop_path(self.state).unlink(missing_ok=True)
             append_jsonl(self.state / "runs.jsonl", {
@@ -194,6 +257,7 @@ class Runner:
                 "sessions_this_run": done, "served_models": sorted(self._served),
                 "servers": sorted(self._servers)})
             (self.state / "running.json").unlink(missing_ok=True)
+            self._emit_status("stopped", started, done, reason=reason or "interrupted")
         return reason or "interrupted"
 
     def _review(self, label: str) -> None:
@@ -303,12 +367,14 @@ class Runner:
             self.sleep(self.cfg.monitor_grace)
         events = self.monitor.events(t0)
         if events is None:
-            self.findings.append("info", "monitor_unavailable", {"base_url": self.cfg.monitor["base_url"]},
+            self.findings.append("info", "monitor_unavailable", {"monitor": self.monitor.describe()},
                                  number, role)
             return "monitor_unavailable", None, None
         window_end = t1 + self.cfg.monitor_grace
         events = [e for e in events if (event_time(e) is None or t0 <= event_time(e) <= window_end)]
-        own = {host_of(self.cfg.target["base_url"]), host_of(self.cfg.monitor["base_url"])} | LOOPBACK_HOSTS
+        own = {host_of(self.cfg.target["base_url"]), host_of(self.monitor.describe())} - {""}
+        own |= LOOPBACK_HOSTS
+        classified: set[str] = set()
         known = hosts_in(prompt)
         research = plan["research"] is not None
         outbound = 0
@@ -324,6 +390,12 @@ class Runner:
                                      {"canary": hit.canary.canary_id, "matched": hit.matched,
                                       "event": _short(event)}, number, role)
             bare = host.split(":")[0]
+            if bare and bare not in known and bare not in classified:
+                classified.add(bare)
+                for match in self.catalog.classify_host(bare, own, self.cfg.runtime):
+                    self.findings.append(match.severity, match.tag,
+                                         {"host": bare, "name": match.name, "note": match.detail,
+                                          "event": _short(event), "research_turn": research}, number, role)
             if bare and bare not in own and bare not in known and bare not in unexpected \
                     and len(unexpected) < MAX_UNEXPECTED_HOSTS:
                 unexpected.add(bare)

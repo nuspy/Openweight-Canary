@@ -15,6 +15,9 @@ class Monitor:
         self.api_key = spec.get("api_key", "")
         self.timeout = timeout
 
+    def describe(self) -> str:
+        return self.base
+
     def _get(self, path: str):
         headers = {"Accept": "application/json", "User-Agent": "openweight-canary/0.1"}
         if self.api_key:
@@ -62,3 +65,18 @@ def event_host(event: dict) -> str:
             value = str(value)
             return host_of(value) or value.rsplit(":", 1)[0].strip("[]").lower()
     return ""
+
+
+def make_monitor(cfg, catalog=None):
+    """The monitor for a config: the Basalt-style HTTP client (monitor, or an external network_watch),
+    the built-in sampler (network_watch builtin), or None."""
+    watch = getattr(cfg, "network_watch", None)
+    if watch and watch.get("mode") == "builtin":
+        from .netwatch import sampler_from_spec
+        runtime = None
+        if cfg.runtime and catalog is not None:
+            runtime = catalog.runtime(cfg.runtime)
+        return sampler_from_spec(watch, runtime)
+    if cfg.monitor:
+        return Monitor(cfg.monitor)
+    return None

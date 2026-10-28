@@ -26,6 +26,10 @@ DEFAULTS = {
     "generators": [],
     "reviewer": None,
     "monitor": None,
+    "network_watch": None,
+    "runtime": None,
+    "vendor": None,
+    "vendors_file": "vendors.local.json",
     "state_dir": "state",
     "duration": "until-stopped",
     "sessions_per_hour": 6,
@@ -59,6 +63,10 @@ class Config:
     generators: list
     reviewer: dict | None
     monitor: dict | None
+    network_watch: dict | None
+    runtime: str | None
+    vendor: str | None
+    vendors_file: Path
     state_dir: Path
     duration: float | None
     sessions_per_hour: float
@@ -95,6 +103,10 @@ class Config:
             "generators": [scrub(g) for g in self.generators],
             "reviewer": scrub(self.reviewer),
             "monitor": scrub(self.monitor),
+            "network_watch": scrub(self.network_watch),
+            "runtime": self.runtime,
+            "vendor": self.vendor,
+            "vendors_file": str(self.vendors_file),
             "state_dir": str(self.state_dir),
             "duration": self.duration,
             "sessions_per_hour": self.sessions_per_hour,
@@ -122,6 +134,7 @@ class Config:
         data = self.to_dict(redact=True)
         data.pop("state_dir")
         data.pop("sources_file")
+        data.pop("vendors_file")
         data.pop("duration")
         return sha256_hex(canonical(data))[:16]
 
@@ -131,6 +144,56 @@ def _secret(value: str) -> str:
     if isinstance(value, str) and value.startswith("env:"):
         return os.environ.get(value[4:], "")
     return value or ""
+
+
+WATCH_KEYS = {"mode", "base_url", "api_key", "command", "process_names", "cmdline_hints", "pids", "interval", "resolve"}
+
+
+def _network_watch(raw, monitor: dict | None) -> tuple[dict | None, dict | None]:
+    """Normalise network_watch into (network_watch, monitor).
+
+    "builtin" or an object without base_url/command: the in-process sampler (canary/netwatch.py).
+    An http(s) URL, or an object with base_url (+ optional command that starts it): an external monitor that serves the
+    same /api/netwatch/status and /api/netwatch/events API; it becomes cfg.monitor.
+    """
+    if not raw:
+        return None, monitor
+    if isinstance(raw, str):
+        if raw.strip().lower() == "builtin":
+            raw = {"mode": "builtin"}
+        elif raw.startswith(("http://", "https://")):
+            raw = {"base_url": raw}
+        else:
+            raise ConfigError('network_watch: a string must be "builtin" or an http(s) URL; '
+                              'to start a command use {"command": "...", "base_url": "..."}')
+    if not isinstance(raw, dict):
+        raise ConfigError("network_watch: must be a string or an object")
+    unknown = set(raw) - WATCH_KEYS
+    if unknown:
+        raise ConfigError(f"network_watch: unknown keys {sorted(unknown)}")
+    spec = dict(raw)
+    external = bool(spec.get("base_url") or spec.get("command"))
+    if spec.get("mode") == "external":
+        external = True
+    if spec.get("mode") == "builtin" and external:
+        raise ConfigError("network_watch: mode builtin cannot have base_url or command")
+    if external:
+        if not spec.get("base_url"):
+            raise ConfigError("network_watch.base_url is required for an external monitor")
+        if monitor is not None:
+            raise ConfigError("set either monitor or network_watch, not both")
+        spec["mode"] = "external"
+        spec["api_key"] = _secret(spec.get("api_key", ""))
+        spec["command"] = spec.get("command") or None
+        return spec, {"base_url": spec["base_url"], "api_key": spec["api_key"]}
+    if monitor is not None:
+        raise ConfigError("set either monitor or network_watch, not both")
+    spec["mode"] = "builtin"
+    spec["interval"] = float(spec.get("interval", 1.0))
+    for key in ("process_names", "cmdline_hints", "pids"):
+        spec[key] = list(spec.get(key) or [])
+    spec["resolve"] = bool(spec.get("resolve", True))
+    return spec, None
 
 
 def _provider(raw, name: str, require_url: bool = True) -> dict:
@@ -167,6 +230,8 @@ def build_config(raw: dict, base_dir: Path | None = None) -> Config:
             raise ConfigError("monitor.base_url is required")
         monitor = {"base_url": mon["base_url"], "api_key": _secret(mon.get("api_key", ""))}
 
+    network_watch, monitor = _network_watch(data["network_watch"], monitor)
+
     listener = {**DEFAULTS["canary_listener"], **(data["canary_listener"] or {})}
     try:
         duration = parse_duration(data["duration"])
@@ -191,6 +256,10 @@ def build_config(raw: dict, base_dir: Path | None = None) -> Config:
         generators=generators,
         reviewer=reviewer,
         monitor=monitor,
+        network_watch=network_watch,
+        runtime=data["runtime"],
+        vendor=data["vendor"],
+        vendors_file=resolve(data["vendors_file"]),
         state_dir=resolve(data["state_dir"]),
         duration=duration,
         sessions_per_hour=float(data["sessions_per_hour"]),

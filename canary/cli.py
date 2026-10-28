@@ -2,19 +2,25 @@
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import logging
 import random
 import sys
+import time
 from pathlib import Path
 
 from . import __version__
 from .config import Config, ConfigError, load_config, sample_config
 from .findings import verify_chain
+from . import launch
 from .materials import SOURCES_SAMPLE, MaterialStore, fetch_sources
 from .registry import Registry
+from .presets import build_config, describe
 from .report import write_report
 from .runner import Runner, stop_path
 from .stats import findings_summary, load_state
+from .vendors import VendorsError, load_catalog
 from .util import iso, write_json
 
 DEFAULT_CONFIG = "canary.json"
@@ -60,10 +66,31 @@ def _state_dir(args) -> Path:
     return Path("state")
 
 
+def _catalog(args=None):
+    try:
+        return load_catalog(getattr(args, "vendors", None))
+    except VendorsError as exc:
+        raise ConfigError(str(exc)) from exc
+
+
+def cmd_presets(args) -> int:
+    print(describe(_catalog(args)))
+    return 0
+
+
 def cmd_init(args) -> int:
     base = Path(args.dir)
     base.mkdir(parents=True, exist_ok=True)
-    for name, content in (("canary.json", sample_config()), ("sources.json", SOURCES_SAMPLE)):
+    if args.runtime:
+        try:
+            config = build_config(_catalog(args), args.runtime, args.model or "", args.vendor, args.target_url)
+        except (VendorsError, ValueError) as exc:
+            raise ConfigError(str(exc)) from exc
+        print(f"runtime {config['runtime']}, vendor {config['vendor'] or '(not detected)'}, "
+              f"target {config['target']['base_url']}")
+    else:
+        config = sample_config()
+    for name, content in (("canary.json", config), ("sources.json", SOURCES_SAMPLE)):
         target = base / name
         if target.exists() and not args.force:
             print(f"{target} exists, left unchanged (use --force)")
@@ -77,12 +104,58 @@ def cmd_run(args) -> int:
     if not Path(args.config).exists() and not args.target_url:
         raise ConfigError(f"config file not found: {args.config} (run 'python -m canary init' or pass --target-url)")
     cfg = _load(args)
-    runner = Runner(cfg)
+    callback = None
+    if args.json_status:
+        def callback(payload):
+            print(launch.status_line(payload), flush=True)
+    runner = Runner(cfg, status_callback=callback, status_every=args.status_every)
+    if args.json_status:
+        print(launch.status_line({"event": "start", "run_id": runner.run_id, "pid": os.getpid(),
+                                  "target": cfg.target["base_url"], "model": cfg.target["model"],
+                                  "runtime": cfg.runtime, "vendor": cfg.vendor, "state_dir": str(cfg.state_dir)}),
+              flush=True)
+        reason = runner.run(max_sessions=args.max_sessions)
+        print(launch.status_line({"event": "end", "run_id": runner.run_id, "reason": reason}), flush=True)
+        return 0
     print(f"{runner.run_id}: target {cfg.target['base_url']} model {cfg.target['model'] or '(default)'}, "
           f"state {cfg.state_dir}")
     print(f"stop with Ctrl+C or: python -m canary stop --state-dir {cfg.state_dir}")
     reason = runner.run(max_sessions=args.max_sessions)
     print(f"finished: {reason}")
+    return 0
+
+
+def cmd_netwatch(args) -> int:
+    from . import netwatch
+    runtime = None
+    if args.runtime:
+        try:
+            runtime = _catalog(args).runtime(args.runtime)
+        except VendorsError as exc:
+            raise ConfigError(str(exc)) from exc
+    spec = {"process_names": args.process, "cmdline_hints": args.hint, "pids": args.pid,
+            "interval": args.interval, "resolve": not args.no_resolve}
+    sampler = netwatch.sampler_from_spec(spec, runtime)
+    if not (sampler.names or sampler.hints or sampler.pids):
+        raise ConfigError("nothing to watch: pass --runtime, --process, --hint or --pid")
+    if args.once:
+        for event in sampler.poll_once():
+            print(json.dumps(event, ensure_ascii=False))
+        print(netwatch.COVERAGE_NOTE, file=sys.stderr)
+        return 0
+    server = netwatch.serve(sampler, args.host, args.port, args.api_key or "")
+    sampler.start()
+    print(f"netwatch on http://{args.host}:{server.server_address[1]}: {sampler.describe()}; Ctrl+C to stop",
+          flush=True)
+    print(netwatch.COVERAGE_NOTE, flush=True)
+    try:
+        while True:
+            time.sleep(1.0)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        sampler.stop()
+        server.shutdown()
     return 0
 
 
@@ -150,10 +223,33 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=__version__)
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p = sub.add_parser("init", help="write sample canary.json and sources.json")
+    p = sub.add_parser("presets", help="list the known runtimes and vendors")
+    p.add_argument("--vendors", help="extra vendors file (default ./vendors.local.json when present)")
+    p.set_defaults(func=cmd_presets)
+
+    p = sub.add_parser("init", help="write canary.json and sources.json (ready for a runtime with --runtime)")
     p.add_argument("--dir", default=".")
     p.add_argument("--force", action="store_true")
+    p.add_argument("--runtime", help="runtime id, see 'presets' (llama.cpp, vllm, sglang, ollama, lmstudio, basalt, ...)")
+    p.add_argument("--model", help="model name as the server knows it; the vendor is detected from it")
+    p.add_argument("--vendor", help="vendor id, when the model name does not reveal it")
+    p.add_argument("--target-url", help="base URL if the server is not on the runtime default")
+    p.add_argument("--vendors", help="extra vendors file (default ./vendors.local.json when present)")
     p.set_defaults(func=cmd_init)
+
+    p = sub.add_parser("netwatch", help="built-in connection sampler serving /api/netwatch/* for a runtime")
+    p.add_argument("--runtime", help="runtime id: watches its usual process names")
+    p.add_argument("--process", action="append", default=[], help="process name to watch (repeatable)")
+    p.add_argument("--hint", action="append", default=[], help="command-line fragment of the process (repeatable)")
+    p.add_argument("--pid", action="append", type=int, default=[], help="process id (repeatable)")
+    p.add_argument("--host", default="127.0.0.1")
+    p.add_argument("--port", type=int, default=8098)
+    p.add_argument("--api-key", default="")
+    p.add_argument("--interval", type=float, default=1.0, help="seconds between samples")
+    p.add_argument("--no-resolve", action="store_true", help="do not reverse-resolve addresses")
+    p.add_argument("--once", action="store_true", help="sample once, print events as JSON lines, exit")
+    p.add_argument("--vendors", help="extra vendors file")
+    p.set_defaults(func=cmd_netwatch)
 
     p = sub.add_parser("run", help="run sessions until stopped")
     _add_config(p)
@@ -167,6 +263,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--target-api-key")
     p.add_argument("--monitor-url")
     p.add_argument("--monitor-api-key")
+    p.add_argument("--json-status", action="store_true",
+                   help="print one JSON status object per line (start, periodic status, end); also state/status.json")
+    p.add_argument("--status-every", type=float, default=30.0, help="seconds between status lines while waiting")
     p.set_defaults(func=cmd_run)
 
     p = sub.add_parser("stop", help="create the STOP file")
