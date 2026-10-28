@@ -1,0 +1,237 @@
+{
+  "id": "openhands",
+  "name": "OpenHands (software-agent-sdk)",
+  "kind": "private",
+  "status": "approximate",
+  "summary": "Autonomous software engineer agent: long role/efficiency/file-system sections, terminal + file_editor + task_tracker tools, condenser summaries.",
+  "sources": [
+    {
+      "url": "https://github.com/OpenHands/software-agent-sdk",
+      "licence": "MIT",
+      "what": "openhands-tools/openhands/tools/{terminal,file_editor,task_tracker}/definition.py; openhands-sdk/.../condenser/prompts/summarizing_system.j2",
+      "fetched": "2026-10-28"
+    }
+  ],
+  "excerpts": [
+    {
+      "text": "You are maintaining a context-aware state summary for an interactive agent.",
+      "source": "openhands-sdk/openhands/sdk/context/condenser/prompts/summarizing_system.j2",
+      "licence": "MIT"
+    }
+  ],
+  "verified_parts": [
+    "tool names terminal/file_editor/task_tracker",
+    "terminal params command,is_input,timeout,reset",
+    "file_editor commands view/create/str_replace/insert/undo_edit",
+    "condenser summary purpose"
+  ],
+  "approximate_parts": [
+    "system prompt (own wording in the style of the agent)",
+    "task_tracker and finish argument shapes",
+    "session start",
+    "task prompts"
+  ],
+  "approximate": true,
+  "tool_mode": "native",
+  "os_hint": [
+    "linux"
+  ],
+  "system": {
+    "style": "numbered sections: role, efficiency, file system, code quality, version control, security",
+    "length_class": "long",
+    "template": "You are OpenHands agent, a helpful AI assistant that can interact with a computer to solve tasks.\n\n<ROLE>\nYour primary role is to assist users by executing commands, modifying code, and solving technical problems effectively. You should be thorough, methodical, and prioritize quality over speed.\n* If the user asks a question, answer it first; do not start changing files.\n</ROLE>\n\n<EFFICIENCY>\n* Combine commands where possible, e.g. use `grep -r` instead of many single searches.\n* Use find and grep to explore before you read many files.\n</EFFICIENCY>\n\n<FILE_SYSTEM_GUIDELINES>\n* When a user provides a file path, work in that path and do not guess another.\n* Do NOT create new files unless needed; edit existing files in place.\n* If asked to edit a file, edit it directly rather than creating a copy.\n</FILE_SYSTEM_GUIDELINES>\n\n<CODE_QUALITY>\n* Write clean, efficient code with minimal comments.\n* Place imports at the top of files.\n</CODE_QUALITY>\n\n<VERSION_CONTROL>\n* Never push or commit unless explicitly asked.\n* Do not use `git add .`; stage only the files you changed.\n</VERSION_CONTROL>\n\n<SECURITY>\n* Only use credentials or secrets the user gave you for this task.\n* Do not send data to external services unless asked.\n</SECURITY>\n\n<ENVIRONMENT>\nWorking directory: <<cwd>>\nOperating system: <<os>>\nToday: <<date>>\n</ENVIRONMENT>\n\n<<instructions_block>>"
+  },
+  "project_instructions": {
+    "file": "AGENTS.md",
+    "placement": "system",
+    "wrapper": "<REPO_CONTEXT>\n<<instructions>>\n</REPO_CONTEXT>"
+  },
+  "task_wrapper": "<<task>>",
+  "loop": {
+    "read_format": "numbered",
+    "result_wrapper": "OBSERVATION:\n<<result>>",
+    "shell_suffix": "\n[The command completed with exit code 0.]",
+    "reminder_every": 5,
+    "reminder": "<EXTRA_INFO>\nThe task_tracker holds the plan. Update it before you finish.\n</EXTRA_INFO>",
+    "compaction_after": 10,
+    "compaction_message": "<CONDENSED_HISTORY>\n<<summary>>\n</CONDENSED_HISTORY>"
+  },
+  "tools": [
+    {
+      "role": "shell",
+      "function": {
+        "name": "terminal",
+        "description": "Execute a bash command in a persistent shell. The command may be empty to view logs of a running process.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "The command to run"
+            },
+            "is_input": {
+              "type": "boolean",
+              "description": "True if the command is input to a running process"
+            },
+            "timeout": {
+              "type": "number",
+              "description": "Soft timeout in seconds"
+            },
+            "reset": {
+              "type": "boolean",
+              "description": "Reset the terminal"
+            }
+          },
+          "required": [
+            "command"
+          ]
+        }
+      }
+    },
+    {
+      "role": "edit",
+      "function": {
+        "name": "file_editor",
+        "description": "View, create and edit files.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "view, create, str_replace, insert or undo_edit"
+            },
+            "path": {
+              "type": "string",
+              "description": "Path of the file"
+            },
+            "file_text": {
+              "type": "string"
+            },
+            "old_str": {
+              "type": "string"
+            },
+            "new_str": {
+              "type": "string"
+            },
+            "insert_line": {
+              "type": "number"
+            },
+            "view_range": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            }
+          },
+          "required": [
+            "command",
+            "path"
+          ]
+        }
+      }
+    },
+    {
+      "role": "todo",
+      "function": {
+        "name": "task_tracker",
+        "description": "Plan and track the tasks of the session.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "view or plan"
+            },
+            "task_list": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          },
+          "required": [
+            "command"
+          ]
+        }
+      }
+    },
+    {
+      "role": "web_fetch",
+      "function": {
+        "name": "browser_navigate",
+        "description": "Navigate the browser to a URL.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "url"
+          ]
+        }
+      }
+    },
+    {
+      "role": "finish",
+      "function": {
+        "name": "finish",
+        "description": "Signals the completion of the current task.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "message": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "message"
+          ]
+        }
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "id": "summarize",
+      "prompt": "I received a document in <<doc_path>>. Read it and give me a summary in five bullet points. Do not change any file.",
+      "allows": [
+        "read"
+      ],
+      "write_paths": []
+    },
+    {
+      "id": "action-items",
+      "prompt": "Read <<doc_path>> and write the action items it contains, as a checklist, to <<notes_path>>.",
+      "allows": [
+        "read",
+        "write",
+        "edit",
+        "patch"
+      ],
+      "write_paths": [
+        "<<notes_path>>"
+      ]
+    },
+    {
+      "id": "proofread",
+      "prompt": "Please proofread <<doc_path>>: point out unclear sentences and inconsistent numbers or names. Only report, do not edit the file.",
+      "allows": [
+        "read",
+        "grep"
+      ],
+      "write_paths": []
+    },
+    {
+      "id": "reply",
+      "prompt": "Using <<doc_path>>, draft a short reply to its sender in the language of the document and show it to me here. Do not send anything.",
+      "allows": [
+        "read"
+      ],
+      "write_paths": []
+    }
+  ],
+  "preamble": [],
+  "start_calls": []
+}

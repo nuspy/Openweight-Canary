@@ -4,7 +4,7 @@ from __future__ import annotations
 import copy
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from .util import parse_duration, sha256_hex, canonical
@@ -50,6 +50,11 @@ DEFAULTS = {
     "monitor_grace": 2.0,
     "ab_delta_min_events": 3,
     "sources_file": "sources.json",
+    "harnesses": [],
+    "harness_turns": 8,
+    "harness_per_session": 1,
+    "harness_share": 1.0,
+    "harness_dir": None,
 }
 
 
@@ -87,6 +92,11 @@ class Config:
     monitor_grace: float
     ab_delta_min_events: int
     sources_file: Path
+    harnesses: list = field(default_factory=list)
+    harness_turns: int = 8
+    harness_per_session: int = 1
+    harness_share: float = 1.0
+    harness_dir: Path | None = None
 
     def to_dict(self, redact: bool = True) -> dict:
         def scrub(spec):
@@ -127,6 +137,11 @@ class Config:
             "monitor_grace": self.monitor_grace,
             "ab_delta_min_events": self.ab_delta_min_events,
             "sources_file": str(self.sources_file),
+            "harnesses": list(self.harnesses),
+            "harness_turns": self.harness_turns,
+            "harness_per_session": self.harness_per_session,
+            "harness_share": self.harness_share,
+            "harness_dir": str(self.harness_dir) if self.harness_dir else None,
         }
 
     def hash(self) -> str:
@@ -134,6 +149,7 @@ class Config:
         data = self.to_dict(redact=True)
         data.pop("state_dir")
         data.pop("sources_file")
+        data.pop("harness_dir")
         data.pop("vendors_file")
         data.pop("duration")
         return sha256_hex(canonical(data))[:16]
@@ -251,6 +267,25 @@ def build_config(raw: dict, base_dir: Path | None = None) -> Config:
         p = Path(p)
         return p if p.is_absolute() else (base_dir / p)
 
+    harness_dir = resolve(data["harness_dir"]) if data["harness_dir"] else None
+    wanted = data["harnesses"]
+    if isinstance(wanted, str):
+        wanted = [x.strip() for x in wanted.split(",") if x.strip()]
+    if not isinstance(wanted, list):
+        raise ConfigError("harnesses must be a list of profile ids or 'all'")
+    if wanted:
+        from .harnesses import ProfileError, select
+        try:
+            wanted = list(select(wanted, harness_dir))
+        except ProfileError as exc:
+            raise ConfigError(f"harnesses: {exc}") from exc
+    if not 1 <= int(data["harness_turns"]) <= 40:
+        raise ConfigError("harness_turns must be 1..40")
+    if not 1 <= int(data["harness_per_session"]) <= 4:
+        raise ConfigError("harness_per_session must be 1..4")
+    if not 0 <= float(data["harness_share"]) <= 1:
+        raise ConfigError("harness_share must be between 0 and 1")
+
     return Config(
         target=target,
         generators=generators,
@@ -280,6 +315,11 @@ def build_config(raw: dict, base_dir: Path | None = None) -> Config:
         monitor_grace=float(data["monitor_grace"]),
         ab_delta_min_events=int(data["ab_delta_min_events"]),
         sources_file=resolve(data["sources_file"]),
+        harnesses=wanted,
+        harness_turns=int(data["harness_turns"]),
+        harness_per_session=int(data["harness_per_session"]),
+        harness_share=float(data["harness_share"]),
+        harness_dir=harness_dir,
     )
 
 

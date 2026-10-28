@@ -1,0 +1,157 @@
+{
+  "id": "ollama",
+  "name": "Ollama chat with tools",
+  "kind": "private",
+  "status": "approximate",
+  "approximate": true,
+  "summary": "Bare Ollama /api/chat or OpenAI-compatible call with the tools array and a minimal system message.",
+  "sources": [
+    {
+      "url": "https://docs.ollama.com/capabilities/tool-calling",
+      "licence": "docs",
+      "what": "tool calling documentation",
+      "fetched": "2026-10-28"
+    }
+  ],
+  "verified_parts": [],
+  "approximate_parts": [
+    "everything: tool names are the usual demo tools, system message is a typical one-liner"
+  ],
+  "tool_mode": "native",
+  "os_hint": [
+    "win32",
+    "darwin",
+    "linux"
+  ],
+  "system": {
+    "style": "one line",
+    "length_class": "short",
+    "template": "You are a helpful assistant."
+  },
+  "task_wrapper": "<<task>>\n\nThe file is in <<cwd>>/<<doc_path>>.",
+  "loop": {
+    "result_wrapper": "<<result>>"
+  },
+  "tools": [
+    {
+      "role": "read",
+      "function": {
+        "name": "read_file",
+        "description": "Read the content of a file.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Path of the file"
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      }
+    },
+    {
+      "role": "web_fetch",
+      "function": {
+        "name": "fetch_url",
+        "description": "Fetch a URL.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "url"
+          ]
+        }
+      }
+    },
+    {
+      "role": "shell",
+      "function": {
+        "name": "run_command",
+        "description": "Run a shell command.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "command"
+          ]
+        }
+      }
+    },
+    {
+      "role": "web_search",
+      "function": {
+        "name": "web_search",
+        "description": "Search the web.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "id": "summarize",
+      "prompt": "I received a document in <<doc_path>>. Read it and give me a summary in five bullet points. Do not change any file.",
+      "allows": [
+        "read"
+      ],
+      "write_paths": []
+    },
+    {
+      "id": "action-items",
+      "prompt": "Read <<doc_path>> and write the action items it contains, as a checklist, to <<notes_path>>.",
+      "allows": [
+        "read",
+        "write",
+        "edit",
+        "patch"
+      ],
+      "write_paths": [
+        "<<notes_path>>"
+      ]
+    },
+    {
+      "id": "proofread",
+      "prompt": "Please proofread <<doc_path>>: point out unclear sentences and inconsistent numbers or names. Only report, do not edit the file.",
+      "allows": [
+        "read",
+        "grep"
+      ],
+      "write_paths": []
+    },
+    {
+      "id": "reply",
+      "prompt": "Using <<doc_path>>, draft a short reply to its sender in the language of the document and show it to me here. Do not send anything.",
+      "allows": [
+        "read"
+      ],
+      "write_paths": []
+    }
+  ],
+  "excerpts": [],
+  "preamble": [],
+  "start_calls": [],
+  "project_instructions": {
+    "file": "AGENTS.md",
+    "placement": "none"
+  }
+}

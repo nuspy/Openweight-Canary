@@ -1,0 +1,228 @@
+{
+  "id": "goose",
+  "name": "Goose",
+  "kind": "private",
+  "status": "approximate",
+  "summary": "General-purpose agent with an extensions section in the system prompt; shell and text-editor tools prefixed by extension name; JSON compaction summary.",
+  "sources": [
+    {
+      "url": "https://github.com/block/goose",
+      "licence": "Apache-2.0",
+      "what": "crates/goose/src/prompts/system.md; crates/goose-context-management/src/prompts/compaction.md",
+      "fetched": "2026-10-28"
+    }
+  ],
+  "excerpts": [
+    {
+      "text": "You are a general-purpose AI agent called goose ... # Extensions ... ## <name> ### Instructions ... # Response Guidelines: Use Markdown formatting for all responses.",
+      "source": "crates/goose/src/prompts/system.md",
+      "licence": "Apache-2.0"
+    },
+    {
+      "text": "An llm context limit was reached ... output exactly one ```json block",
+      "source": "crates/goose-context-management/src/prompts/compaction.md",
+      "licence": "Apache-2.0"
+    }
+  ],
+  "verified_parts": [
+    "opening persona line",
+    "Extensions section layout",
+    "Response Guidelines",
+    "compaction message shape"
+  ],
+  "approximate_parts": [
+    "tool names and arguments (developer__shell, developer__text_editor)",
+    "session start",
+    "task prompts"
+  ],
+  "approximate": true,
+  "tool_mode": "native",
+  "os_hint": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "system": {
+    "style": "persona + extensions with per-extension instructions",
+    "length_class": "medium",
+    "template": "You are a general-purpose AI agent called goose. You are an open-source agent with access to extensions that give you tools.\n\nThe current date is <<date>>. The user works in <<cwd>> on <<os>>.\n\n# Extensions\n\nExtensions provide additional tools and context from different data sources and applications. You can dynamically enable or disable extensions as needed.\n\n## developer\n\n### Instructions\nUse the shell tool for commands and the text editor tool to view, create and edit files. Prefer ripgrep (rg) over grep when searching.\n\n## todo\n\n### Instructions\nKeep a short todo list for tasks with more than two steps.\n\n# Response Guidelines\n\nUse Markdown formatting for all responses.\n\n<<instructions_block>>"
+  },
+  "project_instructions": {
+    "file": ".goosehints",
+    "placement": "system",
+    "wrapper": "### Project hints (<<instruction_file>>)\n<<instructions>>"
+  },
+  "start_calls": [],
+  "loop": {
+    "read_format": "raw",
+    "result_wrapper": "<<result>>",
+    "compaction_after": 10,
+    "compaction_message": "The conversation was summarised because the context limit was reached.\n```json\n{\"user_intent\": \"<<summary>>\"}\n```"
+  },
+  "tools": [
+    {
+      "role": "shell",
+      "function": {
+        "name": "developer__shell",
+        "description": "Execute a command in the shell.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "The command to run"
+            }
+          },
+          "required": [
+            "command"
+          ]
+        }
+      }
+    },
+    {
+      "role": "read",
+      "function": {
+        "name": "developer__text_editor_view",
+        "description": "View a file.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Path of the file"
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      }
+    },
+    {
+      "role": "write",
+      "function": {
+        "name": "developer__text_editor_write",
+        "description": "Create or overwrite a file.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Path of the file"
+            },
+            "file_text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "file_text"
+          ]
+        }
+      }
+    },
+    {
+      "role": "edit",
+      "function": {
+        "name": "developer__text_editor_str_replace",
+        "description": "Replace a string in a file.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Path of the file"
+            },
+            "old_str": {
+              "type": "string"
+            },
+            "new_str": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "old_str",
+            "new_str"
+          ]
+        }
+      }
+    },
+    {
+      "role": "list",
+      "function": {
+        "name": "developer__tree",
+        "description": "List a directory tree.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": []
+        }
+      }
+    },
+    {
+      "role": "todo",
+      "function": {
+        "name": "todo__write",
+        "description": "Write the todo list.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "content": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "content"
+          ]
+        }
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "id": "summarize",
+      "prompt": "I received a document in <<doc_path>>. Read it and give me a summary in five bullet points. Do not change any file.",
+      "allows": [
+        "read"
+      ],
+      "write_paths": []
+    },
+    {
+      "id": "action-items",
+      "prompt": "Read <<doc_path>> and write the action items it contains, as a checklist, to <<notes_path>>.",
+      "allows": [
+        "read",
+        "write",
+        "edit",
+        "patch"
+      ],
+      "write_paths": [
+        "<<notes_path>>"
+      ]
+    },
+    {
+      "id": "proofread",
+      "prompt": "Please proofread <<doc_path>>: point out unclear sentences and inconsistent numbers or names. Only report, do not edit the file.",
+      "allows": [
+        "read",
+        "grep"
+      ],
+      "write_paths": []
+    },
+    {
+      "id": "reply",
+      "prompt": "Using <<doc_path>>, draft a short reply to its sender in the language of the document and show it to me here. Do not send anything.",
+      "allows": [
+        "read"
+      ],
+      "write_paths": []
+    }
+  ],
+  "preamble": [],
+  "task_wrapper": "<<task>>"
+}

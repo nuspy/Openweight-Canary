@@ -13,6 +13,7 @@ from .config import Config
 from .detect import hosts_in, scan_event, scan_hit, scan_response
 from .findings import SEVERITIES, FindingsLog, read_findings
 from .generator import LLMSource
+from .harnesses.session import run_harness_phase
 from .listener import CanaryListener
 from .materials import Item, MaterialStore
 from .launch import ManagedProcess
@@ -124,6 +125,8 @@ class Runner:
         payload = {"event": "status", "state": state, "run_id": self.run_id, "pid": os.getpid(),
                    "time": iso(self.clock()), "started": iso(started), "sessions_this_run": done,
                    "findings": counts, "monitor": self._monitor_label(), "stop_requested": self.stopping()}
+        if self.cfg.harnesses:
+            payload["harnesses"] = list(self.cfg.harnesses)
         if reason:
             payload["reason"] = reason
         try:
@@ -132,6 +135,9 @@ class Runner:
             pass
         if self.status_callback:
             self.status_callback(payload)
+
+    def served_name(self) -> str:
+        return str(self.cfg.target.get("model") or "local-model")
 
     def _monitor_label(self) -> str:
         if self.monitor is None:
@@ -283,6 +289,7 @@ class Runner:
         for role in order:
             convs[role] = self.converse(number, role, items[role], plan)
         self._ab_delta(number, convs)
+        harness_rows = run_harness_phase(self, number, items, order, convs, rng) if self.cfg.harnesses else []
         counts = {sev: 0 for sev in ("high", "medium", "low", "info")}
         row = {
             "session": number, "run_id": self.run_id, "time": iso(), "order": order,
@@ -290,6 +297,8 @@ class Runner:
             "items": {r: i.meta() for r, i in items.items()},
             "conversations": convs,
         }
+        if self.cfg.harnesses:
+            row["harness_conversations"] = harness_rows
         for f in read_jsonl(self.state / "findings.jsonl"):
             if f.get("session") == number:
                 counts[f["severity"]] = counts.get(f["severity"], 0) + 1

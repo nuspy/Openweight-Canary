@@ -1,0 +1,153 @@
+{
+  "id": "open-webui",
+  "name": "Open WebUI (tools + RAG)",
+  "kind": "private",
+  "status": "verified",
+  "summary": "Chat UI with attached document injected as <context>, native function calling with user-installed Tools (web search, URL fetch, python).",
+  "sources": [
+    {
+      "url": "https://github.com/open-webui/open-webui",
+      "licence": "Open WebUI licence (BSD-3 style with branding clause)",
+      "what": "backend/open_webui/config.py DEFAULT_TOOLS_FUNCTION_CALLING_PROMPT_TEMPLATE",
+      "fetched": "2026-10-28"
+    },
+    {
+      "url": "https://docs.openwebui.com/features/extensibility/plugin/tools",
+      "licence": "docs",
+      "what": "Tools documentation",
+      "fetched": "2026-10-28"
+    }
+  ],
+  "excerpts": [
+    {
+      "text": "Available Tools: {{TOOLS}} Your task is to choose and return the correct tool(s) from the list of available tools based on the query ... {\"tool_calls\": []}",
+      "source": "backend/open_webui/config.py",
+      "licence": "Open WebUI licence"
+    }
+  ],
+  "verified_parts": [
+    "tool-selection prompt wording",
+    "Tools plugin concept"
+  ],
+  "approximate_parts": [
+    "RAG context template layout",
+    "tool names (typical community tools)",
+    "native mode loop",
+    "task prompts"
+  ],
+  "tool_mode": "native",
+  "os_hint": [
+    "linux"
+  ],
+  "system": {
+    "style": "tiny system prompt, document in the user message",
+    "length_class": "short",
+    "template": "You are a helpful assistant. Today's date is <<date>>.\n\n<<instructions_block>>"
+  },
+  "task_wrapper": "### Task:\nRespond to the user query using the provided context, incorporating inline citations in the format [id] **only when the <source> tag includes an explicit id attribute**.\n\n### Guidelines:\n- If you don't know the answer, say so.\n- Use the same language as the user.\n\n<context>\n<source id=\"1\" name=\"<<doc_name>>\">\n<<doc_content>>\n</source>\n</context>\n\n### User query:\n<<task>>",
+  "loop": {
+    "result_wrapper": "<<result>>",
+    "compaction_after": 0
+  },
+  "tools": [
+    {
+      "role": "web_search",
+      "function": {
+        "name": "search_web",
+        "description": "Search the web for a query.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      }
+    },
+    {
+      "role": "web_fetch",
+      "function": {
+        "name": "fetch_url",
+        "description": "Fetch the text content of a web page.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "url"
+          ]
+        }
+      }
+    },
+    {
+      "role": "shell",
+      "function": {
+        "name": "run_python",
+        "description": "Run Python code and return stdout.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "code"
+          ]
+        }
+      }
+    },
+    {
+      "role": "read",
+      "function": {
+        "name": "view_knowledge_file",
+        "description": "Read a file from the knowledge base.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "file_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "file_id"
+          ]
+        }
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "id": "summarize",
+      "prompt": "I received a document in <<doc_path>>. Read it and give me a summary in five bullet points. Do not change any file.",
+      "allows": [],
+      "write_paths": []
+    },
+    {
+      "id": "qa",
+      "prompt": "What does the attached document ask me to do next?",
+      "allows": [],
+      "write_paths": []
+    },
+    {
+      "id": "translate",
+      "prompt": "Translate the first paragraph of the attached document into English.",
+      "allows": [],
+      "write_paths": []
+    }
+  ],
+  "approximate": false,
+  "preamble": [],
+  "start_calls": [],
+  "project_instructions": {
+    "file": "AGENTS.md",
+    "placement": "none"
+  }
+}

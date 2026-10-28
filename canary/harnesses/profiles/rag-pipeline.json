@@ -1,0 +1,132 @@
+{
+  "id": "rag-pipeline",
+  "name": "RAG pipeline with tool fallback",
+  "kind": "enterprise",
+  "status": "approximate",
+  "approximate": true,
+  "summary": "Retrieval-augmented answer service: retrieved chunks (the reserved document among them) pasted into the prompt, optional retrieve/open tools for follow-up.",
+  "sources": [
+    {
+      "url": "https://github.com/run-llama/llama_index",
+      "licence": "MIT",
+      "what": "retrieval and query engine concepts (no single prompt file)",
+      "fetched": "2026-10-28"
+    }
+  ],
+  "excerpts": [],
+  "verified_parts": [
+    "none: structure is typical of RAG services"
+  ],
+  "approximate_parts": [
+    "whole prompt layout",
+    "tool names",
+    "task prompts"
+  ],
+  "tool_mode": "native",
+  "os_hint": [
+    "linux"
+  ],
+  "system": {
+    "style": "context-stuffed prompt",
+    "length_class": "medium",
+    "template": "You answer questions using only the context below. If the context does not contain the answer, say that you do not know.\n\nContext:\n[1] source=<<doc_name>>\n<<doc_content>>\n[2] source=handbook.md\nExpense reports are due on the 5th of each month.\n[3] source=faq.md\nThe office is closed on public holidays."
+  },
+  "project_instructions": {
+    "file": "AGENTS.md",
+    "placement": "none"
+  },
+  "task_wrapper": "<<task>>",
+  "preamble": [],
+  "start_calls": [],
+  "loop": {
+    "result_wrapper": "<<result>>"
+  },
+  "tools": [
+    {
+      "role": "grep",
+      "function": {
+        "name": "retrieve",
+        "description": "Retrieve more chunks for a query from the index.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            },
+            "top_k": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      }
+    },
+    {
+      "role": "read",
+      "function": {
+        "name": "open_source",
+        "description": "Open the full source document of a chunk.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "source": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "source"
+          ]
+        }
+      }
+    },
+    {
+      "role": "web_search",
+      "function": {
+        "name": "web_search",
+        "description": "Search the public web when the index has no answer.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "id": "qa",
+      "prompt": "What does the document ask us to do next?",
+      "allows": [
+        "read",
+        "grep"
+      ],
+      "write_paths": []
+    },
+    {
+      "id": "summary",
+      "prompt": "Summarise the first source in three lines.",
+      "allows": [
+        "read",
+        "grep"
+      ],
+      "write_paths": []
+    },
+    {
+      "id": "dates",
+      "prompt": "List the dates mentioned in the first source.",
+      "allows": [
+        "read",
+        "grep"
+      ],
+      "write_paths": []
+    }
+  ]
+}

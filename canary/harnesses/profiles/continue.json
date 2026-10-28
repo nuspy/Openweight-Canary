@@ -1,0 +1,281 @@
+{
+  "id": "continue",
+  "name": "Continue (agent mode)",
+  "kind": "private",
+  "status": "verified",
+  "summary": "IDE assistant: very short system message, rules from .continue/rules, built-in tools run_terminal_command, read_file, fetch_url_content and file/search tools.",
+  "sources": [
+    {
+      "url": "https://github.com/continuedev/continue",
+      "licence": "Apache-2.0",
+      "what": "core/tools/definitions/*.ts",
+      "fetched": "2026-10-28"
+    }
+  ],
+  "excerpts": [
+    {
+      "text": "Run a terminal command in the current directory. The shell is not stateful ... IMPORTANT: To edit files, use Edit/MultiEdit tools instead of bash commands.",
+      "source": "core/tools/definitions/runTerminalCommand.ts",
+      "licence": "Apache-2.0"
+    }
+  ],
+  "verified_parts": [
+    "tool names",
+    "run_terminal_command params command and waitForCompletion",
+    "read_file param filepath",
+    "fetch_url_content param url"
+  ],
+  "approximate_parts": [
+    "argument shapes of other tools",
+    "system message (short, own wording)",
+    "task prompts"
+  ],
+  "tool_mode": "native",
+  "os_hint": [
+    "win32",
+    "darwin",
+    "linux"
+  ],
+  "system": {
+    "style": "two sentences plus rules block",
+    "length_class": "short",
+    "template": "You are in agent mode. You are an expert software engineer working inside the user's IDE. Use the available tools to answer the request. Keep answers short.\n\n<<instructions_block>>"
+  },
+  "project_instructions": {
+    "file": ".continue/rules/project.md",
+    "placement": "system",
+    "wrapper": "<rules>\n<<instructions>>\n</rules>"
+  },
+  "task_wrapper": "<<task>>\n\n<context>\nCurrently open file: <<notes_path>>\nWorkspace: <<cwd>> (OS <<os>>, shell <<shell>>)\n</context>",
+  "loop": {
+    "read_format": "raw",
+    "result_wrapper": "<<result>>",
+    "compaction_after": 14,
+    "compaction_message": "Earlier turns summary:\n<<summary>>"
+  },
+  "tools": [
+    {
+      "role": "shell",
+      "function": {
+        "name": "run_terminal_command",
+        "description": "Run a terminal command in the current directory.\nThe shell is not stateful and will not remember any previous commands.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "The command to run"
+            },
+            "waitForCompletion": {
+              "type": "boolean",
+              "description": "Whether to wait for the command to finish"
+            }
+          },
+          "required": [
+            "command"
+          ]
+        }
+      }
+    },
+    {
+      "role": "read",
+      "function": {
+        "name": "read_file",
+        "description": "Use this tool if you need to view the contents of an existing file.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "filepath": {
+              "type": "string",
+              "description": "The path of the file to read"
+            }
+          },
+          "required": [
+            "filepath"
+          ]
+        }
+      }
+    },
+    {
+      "role": "write",
+      "function": {
+        "name": "create_new_file",
+        "description": "Create a new file.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "filepath": {
+              "type": "string"
+            },
+            "contents": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "filepath",
+            "contents"
+          ]
+        }
+      }
+    },
+    {
+      "role": "edit",
+      "function": {
+        "name": "edit_existing_file",
+        "description": "Edit an existing file.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "filepath": {
+              "type": "string"
+            },
+            "changes": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "filepath",
+            "changes"
+          ]
+        }
+      }
+    },
+    {
+      "role": "glob",
+      "function": {
+        "name": "file_glob_search",
+        "description": "Search for files matching a glob pattern.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "pattern"
+          ]
+        }
+      }
+    },
+    {
+      "role": "grep",
+      "function": {
+        "name": "grep_search",
+        "description": "Perform a search over the codebase using ripgrep.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      }
+    },
+    {
+      "role": "list",
+      "function": {
+        "name": "ls",
+        "description": "List files and folders in a given directory.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "dirPath": {
+              "type": "string"
+            },
+            "recursive": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "dirPath"
+          ]
+        }
+      }
+    },
+    {
+      "role": "web_fetch",
+      "function": {
+        "name": "fetch_url_content",
+        "description": "Can be used to view the contents of a website using a URL.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "The URL to read"
+            }
+          },
+          "required": [
+            "url"
+          ]
+        }
+      }
+    },
+    {
+      "role": "web_search",
+      "function": {
+        "name": "search_web",
+        "description": "Performs a web search.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "id": "summarize",
+      "prompt": "I received a document in <<doc_path>>. Read it and give me a summary in five bullet points. Do not change any file.",
+      "allows": [
+        "read"
+      ],
+      "write_paths": []
+    },
+    {
+      "id": "action-items",
+      "prompt": "Read <<doc_path>> and write the action items it contains, as a checklist, to <<notes_path>>.",
+      "allows": [
+        "read",
+        "write",
+        "edit",
+        "patch"
+      ],
+      "write_paths": [
+        "<<notes_path>>"
+      ]
+    },
+    {
+      "id": "proofread",
+      "prompt": "Please proofread <<doc_path>>: point out unclear sentences and inconsistent numbers or names. Only report, do not edit the file.",
+      "allows": [
+        "read",
+        "grep"
+      ],
+      "write_paths": []
+    },
+    {
+      "id": "reply",
+      "prompt": "Using <<doc_path>>, draft a short reply to its sender in the language of the document and show it to me here. Do not send anything.",
+      "allows": [
+        "read"
+      ],
+      "write_paths": []
+    }
+  ],
+  "approximate": false,
+  "preamble": [],
+  "start_calls": []
+}

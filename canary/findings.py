@@ -31,6 +31,7 @@ class FindingsLog:
         self.path = Path(path)
         self.run_id = run_id
         self._lock = threading.Lock()
+        self.harness: str | None = None
         self._count = 0
         self._prev = GENESIS
         for rec in read_jsonl(self.path):
@@ -38,7 +39,7 @@ class FindingsLog:
             self._prev = rec.get("hash", self._prev)
 
     def append(self, severity: str, kind: str, evidence: dict, session: int | None = None,
-               role: str | None = None) -> dict:
+               role: str | None = None, harness: str | None = None) -> dict:
         if severity not in SEVERITIES:
             raise ValueError(f"bad severity {severity!r}")
         with self._lock:
@@ -47,6 +48,9 @@ class FindingsLog:
                 "severity": severity, "kind": kind, "session": session, "role": role,
                 "evidence": evidence, "prev": self._prev,
             }
+            harness = harness or self.harness
+            if harness:
+                record["harness"] = harness
             record["hash"] = record_hash(record)
             self.path.parent.mkdir(parents=True, exist_ok=True)
             with self.path.open("a", encoding="utf-8", newline="\n") as fh:

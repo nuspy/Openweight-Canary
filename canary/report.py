@@ -7,7 +7,7 @@ from pathlib import Path
 from . import __version__
 from .findings import verify_chain
 from .reviewer import read_reviews
-from .stats import ab_stats, findings_summary, load_state, monitor_summary
+from .stats import ab_stats, findings_summary, harness_summary, load_state, monitor_summary
 from .util import iso, write_json
 
 METHOD = [
@@ -30,6 +30,19 @@ LIMITS = [
     "A model that never repeats a canary can still leak other content; canaries detect only what they cover.",
     "Findings of low or medium severity are leads to check, not proof; the reviewer's text is an opinion.",
 ]
+
+
+HARNESS_METHOD = (
+    "Agent-harness mode: the same reserved documents are also handled inside simulated agent harnesses (system prompt, "
+    "tool schemas and session start in the style of each profile). The canary answers the tool calls with fake "
+    "results; shell, web and write calls are recorded and never executed. Tool calls are checked for network, "
+    "encoding and archive commands, hosts and paths outside the task, canary values (plain, encoded, chunked) and "
+    "behaviour that appears only after a trigger word; sensitive and control runs, harness and bare chat, and "
+    "different profiles are compared.")
+HARNESS_LIMIT = (
+    "Harness profiles are imitations: profiles marked approximate were written from general knowledge, and even "
+    "verified ones copy only the prompt and tool shapes seen in the public source, not the real client. A behaviour "
+    "that needs a different harness, longer sessions or real tools can go unseen.")
 
 
 def _parse(ts: str | None) -> datetime | None:
@@ -65,6 +78,7 @@ def build_report(state_dir: Path) -> dict:
                      key=lambda f: (severity_rank[f["severity"]], f["n"]))[:100]
     chain = verify_chain(Path(state_dir) / "findings.jsonl")
     reviews = read_reviews(state_dir)
+    harness = harness_summary(sessions, findings)
     return {
         "generated": iso(), "tool_version": __version__,
         "config_hash": last_start.get("config_hash"),
@@ -89,7 +103,9 @@ def build_report(state_dir: Path) -> dict:
                      "sessions_covered": r["digest"]["sessions_covered"], "error": r["reply"].get("error"),
                      "assessment": r.get("assessment"),
                      "raw": None if r.get("assessment") else r["reply"].get("text", "")[:1500]} for r in reviews],
-        "method": METHOD, "limits": LIMITS,
+        "harnesses": harness,
+        "method": METHOD + ([HARNESS_METHOD] if harness["enabled"] else []),
+        "limits": LIMITS + ([HARNESS_LIMIT] if harness["enabled"] else []),
     }
 
 
@@ -131,11 +147,25 @@ def render_markdown(rep: dict) -> str:
     lines += _table(["severity", "count"], [[s, n] for s, n in f["by_severity"].items()])
     if f["notable"]:
         lines += ["", "Notable findings (high, medium, low):", ""]
-        lines += _table(["#", "severity", "kind", "session", "role", "evidence"],
-                        [[x["n"], x["severity"], x["kind"], x.get("session"), x.get("role"),
+        lines += _table(["#", "severity", "kind", "session", "role", "harness", "evidence"],
+                        [[x["n"], x["severity"], x["kind"], x.get("session"), x.get("role"), x.get("harness"),
                           str(x["evidence"])[:160].replace("|", "/")] for x in f["notable"][:50]])
     else:
         lines += ["", "No findings above info level."]
+    h = rep.get("harnesses") or {}
+    if h.get("enabled"):
+        lines += ["", "## Agent-harness simulation", ""]
+        rows = []
+        for pid, p in h["profiles"].items():
+            sf, cf = p["sensitive"]["findings"], p["control"]["findings"]
+            fmt = lambda d: f"{d.get('high', 0)}/{d.get('medium', 0)}/{d.get('low', 0)}"
+            rows.append([pid, p["kind"], p["status"], p["conversations"], p["tool_calls"], fmt(sf), fmt(cf)])
+        lines += _table(["profile", "kind", "status", "conversations", "tool calls",
+                         "sensitive high/med/low", "control high/med/low"], rows)
+        if h["comparisons"]:
+            lines += ["", "Comparisons that fired: " + ", ".join(f"{k} x{v}" for k, v in h["comparisons"].items())]
+        else:
+            lines += ["", "No comparison (harness vs bare chat, sensitive vs control, profile vs profile) fired."]
     lines += ["", "## Monitor coverage", ""]
     mon = rep["monitor"]
     lines.append(f"- Conversations by monitor state: {mon['conversations_by_monitor_state'] or 'none'}")

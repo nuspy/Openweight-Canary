@@ -6,7 +6,7 @@ import logging
 import time
 import urllib.error
 import urllib.request
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 
 from .util import opener_for
 
@@ -26,9 +26,15 @@ class Reply:
     served_model: str | None = None
     server: str | None = None
     attempts: int = 1
+    tool_calls: list = field(default_factory=list)
+    message: dict | None = None
 
     def to_dict(self) -> dict:
-        return asdict(self)
+        out = asdict(self)
+        for key in ("tool_calls", "message"):
+            if not out[key]:
+                del out[key]
+        return out
 
 
 def _flatten_content(content) -> str:
@@ -43,6 +49,45 @@ def _flatten_content(content) -> str:
                 parts.append(part)
         return "".join(parts)
     return ""
+
+
+def _args_dict(raw) -> dict:
+    """Tool-call arguments as a dict; unparseable text is kept under `_raw`."""
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str) and raw.strip():
+        try:
+            value = json.loads(raw)
+        except ValueError:
+            return {"_raw": raw}
+        return value if isinstance(value, dict) else {"_value": value}
+    return {}
+
+
+def to_anthropic_messages(messages: list[dict]) -> list[dict]:
+    """Convert OpenAI-style tool messages (assistant tool_calls, role tool) to Anthropic content blocks."""
+    out: list[dict] = []
+    for msg in messages:
+        role = msg.get("role")
+        if role == "assistant" and msg.get("tool_calls"):
+            blocks = []
+            if msg.get("content"):
+                blocks.append({"type": "text", "text": msg["content"]})
+            for call in msg["tool_calls"]:
+                fn = call.get("function") or {}
+                blocks.append({"type": "tool_use", "id": call.get("id"), "name": fn.get("name"),
+                               "input": _args_dict(fn.get("arguments"))})
+            out.append({"role": "assistant", "content": blocks})
+        elif role == "tool":
+            block = {"type": "tool_result", "tool_use_id": msg.get("tool_call_id"),
+                     "content": msg.get("content") or ""}
+            if out and out[-1]["role"] == "user" and isinstance(out[-1]["content"], list):
+                out[-1]["content"].append(block)
+            else:
+                out.append({"role": "user", "content": [block]})
+        else:
+            out.append({"role": role, "content": msg.get("content") or ""})
+    return out
 
 
 class Provider:
@@ -74,7 +119,8 @@ class Provider:
         headers.update(self.spec.get("extra_headers") or {})
         return headers
 
-    def _body(self, messages: list[dict], system: str | None, max_tokens: int) -> bytes:
+    def _body(self, messages: list[dict], system: str | None, max_tokens: int,
+              tools: list[dict] | None = None) -> bytes:
         body: dict = {"messages": messages, "max_tokens": max_tokens}
         if self.spec.get("model"):
             body["model"] = self.spec["model"]
@@ -82,8 +128,17 @@ class Provider:
             body["stream"] = False
             if system:
                 body["messages"] = [{"role": "system", "content": system}] + messages
-        elif system:
-            body["system"] = system
+            if tools:
+                body["tools"] = tools
+                body["tool_choice"] = "auto"
+        else:
+            if tools:
+                body["messages"] = to_anthropic_messages(messages)
+                body["tools"] = [{"name": t["function"]["name"], "description": t["function"].get("description", ""),
+                                  "input_schema": t["function"].get("parameters") or {"type": "object"}}
+                                 for t in tools]
+            if system:
+                body["system"] = system
         return json.dumps(body).encode("utf-8")
 
     def _parse(self, raw: bytes, reply: Reply) -> None:
@@ -94,16 +149,43 @@ class Provider:
             choices = data.get("choices") or []
             if not choices:
                 raise ValueError("no choices in response")
-            reply.text = _flatten_content((choices[0].get("message") or {}).get("content"))
+            message = choices[0].get("message") or {}
+            reply.text = _flatten_content(message.get("content"))
+            calls = []
+            for i, call in enumerate(message.get("tool_calls") or []):
+                fn = call.get("function") or {}
+                calls.append({"id": call.get("id") or f"call_{i}", "name": fn.get("name") or "",
+                              "arguments": _args_dict(fn.get("arguments"))})
+            reply.tool_calls = calls
+            if calls:
+                reply.message = {"role": "assistant", "content": reply.text or None,
+                                 "tool_calls": [{"id": c["id"], "type": "function",
+                                                 "function": {"name": c["name"],
+                                                              "arguments": json.dumps(c["arguments"])}}
+                                                for c in calls]}
             reply.tokens_in = usage.get("prompt_tokens")
             reply.tokens_out = usage.get("completion_tokens")
         else:
-            reply.text = _flatten_content(data.get("content"))
+            blocks = data.get("content")
+            reply.text = _flatten_content(blocks)
+            calls = []
+            for i, block in enumerate(blocks if isinstance(blocks, list) else []):
+                if isinstance(block, dict) and block.get("type") == "tool_use":
+                    calls.append({"id": block.get("id") or f"call_{i}", "name": block.get("name") or "",
+                                  "arguments": _args_dict(block.get("input"))})
+            reply.tool_calls = calls
+            if calls:
+                reply.message = {"role": "assistant", "content": reply.text or None,
+                                 "tool_calls": [{"id": c["id"], "type": "function",
+                                                 "function": {"name": c["name"],
+                                                              "arguments": json.dumps(c["arguments"])}}
+                                                for c in calls]}
             reply.tokens_in = usage.get("input_tokens")
             reply.tokens_out = usage.get("output_tokens")
 
-    def chat(self, messages: list[dict], system: str | None = None, max_tokens: int = 1024) -> Reply:
-        body = self._body(messages, system, max_tokens)
+    def chat(self, messages: list[dict], system: str | None = None, max_tokens: int = 1024,
+             tools: list[dict] | None = None) -> Reply:
+        body = self._body(messages, system, max_tokens, tools)
         reply = Reply()
         started = time.monotonic()
         for attempt in range(self.retries + 1):

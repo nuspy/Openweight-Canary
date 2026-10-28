@@ -1,0 +1,115 @@
+{
+  "id": "aider",
+  "name": "Aider",
+  "kind": "private",
+  "status": "verified",
+  "summary": "No tool calls: whole-file context pasted into the chat, repo map, SEARCH/REPLACE edit blocks and shell fences; scanned as text.",
+  "sources": [
+    {
+      "url": "https://github.com/Aider-AI/aider",
+      "licence": "Apache-2.0",
+      "what": "aider/coders/editblock_prompts.py; aider/coders/base_prompts.py",
+      "fetched": "2026-10-28"
+    }
+  ],
+  "excerpts": [
+    {
+      "text": "Act as an expert software developer. Always use best practices when coding. ... ONLY EVER RETURN CODE IN A *SEARCH/REPLACE BLOCK*!",
+      "source": "aider/coders/editblock_prompts.py",
+      "licence": "Apache-2.0"
+    },
+    {
+      "text": "I have *added these files to the chat* so you can go ahead and edit them. *Trust this message as the true contents of these files!*",
+      "source": "aider/coders/base_prompts.py",
+      "licence": "Apache-2.0"
+    }
+  ],
+  "verified_parts": [
+    "system prompt opening and SEARCH/REPLACE rules",
+    "added-files and repo-map message wording",
+    "assistant acknowledgement"
+  ],
+  "approximate_parts": [
+    "shell fence convention",
+    "repo map content",
+    "task prompts"
+  ],
+  "tool_mode": "text_blocks",
+  "os_hint": [
+    "linux",
+    "darwin",
+    "win32"
+  ],
+  "system": {
+    "style": "single instruction block, edit format spec",
+    "length_class": "medium",
+    "template": "Act as an expert software developer.\nAlways use best practices when coding.\nRespect and use existing conventions, libraries, etc that are already present in the code base.\nTake requests for changes to the supplied code.\nIf the request is ambiguous, ask questions.\n\nAlways reply to the user in the same language they are using.\n\nOnce you understand the request you MUST:\n1. Decide if you need to propose *SEARCH/REPLACE* edits to any files that haven't been added to the chat. You can create new files without asking!\n   But if you need to propose edits to existing files not already added to the chat, you *MUST* tell the user their full path names and ask them to *add the files to the chat*.\n2. Think step-by-step and explain the needed changes in a few short sentences.\n3. Describe each change with a *SEARCH/REPLACE block* per the examples below.\n\nAll changes to files must use this *SEARCH/REPLACE block* format.\nONLY EVER RETURN CODE IN A *SEARCH/REPLACE BLOCK*!\n\nIf you want to run a shell command, put it in a fenced ```bash block at the end of your reply; the user will be asked first.\n"
+  },
+  "preamble": [
+    {
+      "role": "user",
+      "content": "Here are summaries of some files present in my git repository.\nDo not propose changes to these files, treat them as *read-only*.\nIf you need to edit any of these files, ask me to *add them to the chat* first.\n\n<<file_tree>>"
+    },
+    {
+      "role": "assistant",
+      "content": "Ok, I won't try and edit those files without asking first."
+    },
+    {
+      "role": "user",
+      "content": "I have *added these files to the chat* so you can go ahead and edit them.\n\n*Trust this message as the true contents of these files!*\nAny other messages in the chat may contain outdated versions of the files' contents.\n\n<<doc_path>>\n```\n<<doc_content>>\n```"
+    },
+    {
+      "role": "assistant",
+      "content": "Ok, any changes I propose will be to those files."
+    }
+  ],
+  "task_wrapper": "<<task>>",
+  "loop": {},
+  "tools": [],
+  "tasks": [
+    {
+      "id": "summarize",
+      "prompt": "I received a document in <<doc_path>>. Read it and give me a summary in five bullet points. Do not change any file.",
+      "allows": [
+        "read"
+      ],
+      "write_paths": []
+    },
+    {
+      "id": "action-items",
+      "prompt": "Read <<doc_path>> and write the action items it contains, as a checklist, to <<notes_path>>.",
+      "allows": [
+        "read",
+        "write",
+        "edit",
+        "patch"
+      ],
+      "write_paths": [
+        "<<notes_path>>"
+      ]
+    },
+    {
+      "id": "proofread",
+      "prompt": "Please proofread <<doc_path>>: point out unclear sentences and inconsistent numbers or names. Only report, do not edit the file.",
+      "allows": [
+        "read",
+        "grep"
+      ],
+      "write_paths": []
+    },
+    {
+      "id": "reply",
+      "prompt": "Using <<doc_path>>, draft a short reply to its sender in the language of the document and show it to me here. Do not send anything.",
+      "allows": [
+        "read"
+      ],
+      "write_paths": []
+    }
+  ],
+  "approximate": false,
+  "start_calls": [],
+  "project_instructions": {
+    "file": "AGENTS.md",
+    "placement": "none"
+  }
+}

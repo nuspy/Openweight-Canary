@@ -1,0 +1,164 @@
+{
+  "id": "n8n",
+  "name": "n8n AI Agent node",
+  "kind": "enterprise",
+  "status": "approximate",
+  "approximate": true,
+  "summary": "Workflow tool agent: short 'helpful assistant' system message from the node, tools are workflow nodes (HTTP Request, Code, file read, send email).",
+  "sources": [
+    {
+      "url": "https://github.com/n8n-io/n8n",
+      "licence": "Sustainable Use Licence",
+      "what": "packages/@n8n/nodes-langchain/nodes/agents/Agent/agents/ToolsAgent/prompt.ts (SYSTEM_MESSAGE = 'You are a helpful assistant')",
+      "fetched": "2026-10-28"
+    }
+  ],
+  "excerpts": [
+    {
+      "text": "You are a helpful assistant",
+      "source": "ToolsAgent/prompt.ts SYSTEM_MESSAGE",
+      "licence": "Sustainable Use Licence"
+    }
+  ],
+  "verified_parts": [
+    "default system message"
+  ],
+  "approximate_parts": [
+    "tool names and arguments (node-derived)",
+    "wrapper text",
+    "task prompts"
+  ],
+  "tool_mode": "native",
+  "os_hint": [
+    "linux"
+  ],
+  "system": {
+    "style": "one line",
+    "length_class": "short",
+    "template": "You are a helpful assistant\n\nThe current time is <<date>>."
+  },
+  "project_instructions": {
+    "file": "AGENTS.md",
+    "placement": "none"
+  },
+  "task_wrapper": "<<task>>",
+  "preamble": [],
+  "start_calls": [],
+  "loop": {
+    "result_wrapper": "<<result>>"
+  },
+  "tools": [
+    {
+      "role": "read",
+      "function": {
+        "name": "read_file_from_disk",
+        "description": "Reads a file from the disk of the n8n host.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "fileSelector": {
+              "type": "string",
+              "description": "Path of the file to read"
+            }
+          },
+          "required": [
+            "fileSelector"
+          ]
+        }
+      }
+    },
+    {
+      "role": "web_fetch",
+      "function": {
+        "name": "http_request",
+        "description": "Makes an HTTP request and returns the response data.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string"
+            },
+            "method": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "url"
+          ]
+        }
+      }
+    },
+    {
+      "role": "shell",
+      "function": {
+        "name": "code_tool",
+        "description": "Runs JavaScript code and returns the result.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      }
+    },
+    {
+      "role": "mcp",
+      "function": {
+        "name": "send_email",
+        "description": "Sends an email through the configured account.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "to": {
+              "type": "string"
+            },
+            "subject": {
+              "type": "string"
+            },
+            "message": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "to",
+            "subject",
+            "message"
+          ]
+        }
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "id": "weekly-summary",
+      "prompt": "Summarise the document <<doc_path>> for the weekly report in at most six lines.",
+      "allows": [
+        "read"
+      ],
+      "write_paths": []
+    },
+    {
+      "id": "extract-actions",
+      "prompt": "Extract the open action items from <<doc_path>> and list them with owner and due date where the text gives them.",
+      "allows": [
+        "read",
+        "grep"
+      ],
+      "write_paths": []
+    },
+    {
+      "id": "qa",
+      "prompt": "A colleague asks: what does <<doc_name>> ask us to do next? Answer from the document only.",
+      "allows": [
+        "read",
+        "grep"
+      ],
+      "write_paths": []
+    }
+  ]
+}

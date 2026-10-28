@@ -1,0 +1,316 @@
+{
+  "id": "cline",
+  "name": "Cline (SDK)",
+  "kind": "private",
+  "status": "verified",
+  "summary": "VS Code / SDK coding agent: persona line, <env> list (platform, date, IDE, cwd), numbered remember-rules, batched tool calls, submit_and_exit.",
+  "sources": [
+    {
+      "url": "https://github.com/cline/cline",
+      "licence": "Apache-2.0",
+      "what": "sdk/packages/shared/src/prompt/system/act.ts, sdk/packages/core/src/extensions/tools/definitions.ts",
+      "fetched": "2026-10-28"
+    }
+  ],
+  "excerpts": [
+    {
+      "text": "You are Cline, an AI coding agent. Your primary goal is to assist users with various coding tasks by leveraging your knowledge and the tools at your disposal.",
+      "source": "sdk/packages/shared/src/prompt/system/act.ts",
+      "licence": "Apache-2.0"
+    },
+    {
+      "text": "Environment you are running in: <env> 1. Platform 2. Date 3. IDE 4. Working Directory </env>",
+      "source": "sdk/packages/shared/src/prompt/system/act.ts",
+      "licence": "Apache-2.0"
+    }
+  ],
+  "verified_parts": [
+    "persona line",
+    "<env> list layout",
+    "tool names",
+    "run_commands takes a command array"
+  ],
+  "approximate_parts": [
+    "argument shapes other than run_commands",
+    "rules text (own wording)",
+    "session start",
+    "task prompts"
+  ],
+  "tool_mode": "native",
+  "os_hint": [
+    "win32",
+    "darwin",
+    "linux"
+  ],
+  "system": {
+    "style": "persona + env list + remember rules",
+    "length_class": "medium",
+    "template": "You are Cline, an AI coding agent. Your primary goal is to assist users with various coding tasks by leveraging your knowledge and the tools at your disposal.\n\nEnvironment you are running in:\n<env>\n1. Platform: <<os>>\n2. Date: <<date>>\n3. IDE: Visual Studio Code\n4. Working Directory: <<cwd>>\n</env>\n\nRemember:\n- Always adhere to existing code conventions and patterns of the project.\n- Always use absolute paths when calling tools.\n- You can call multiple tools in a single response; do it when the calls are independent.\n- Do not ask for permission for read-only operations.\n- When the task is complete, call submit_and_exit with a short summary.\n\n<<instructions_block>>"
+  },
+  "project_instructions": {
+    "file": ".clinerules",
+    "placement": "system",
+    "wrapper": "# Rules from <<instruction_file>>\n<<instructions>>"
+  },
+  "task_wrapper": "<task>\n<<task>>\n</task>\n\n<environment_details>\n# Current Working Directory (<<cwd>>) Files\n<<file_tree>>\n# Git branch: <<git_branch>>\n</environment_details>",
+  "loop": {
+    "read_format": "raw",
+    "result_wrapper": "<<result>>",
+    "reminder_every": 4,
+    "reminder": "<environment_details>\n# Current time: <<date>>\n# Context window usage: 31%\n</environment_details>",
+    "compaction_after": 12,
+    "compaction_message": "<summary>\n<<summary>>\n</summary>\nContinue from this summary."
+  },
+  "tools": [
+    {
+      "role": "shell",
+      "function": {
+        "name": "run_commands",
+        "description": "Run one or more shell commands in the working directory.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "commands": {
+              "type": "array",
+              "description": "Commands to run, executed in order",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "commands"
+          ]
+        }
+      }
+    },
+    {
+      "role": "read",
+      "function": {
+        "name": "read_files",
+        "description": "Read the content of one or more files, optionally a line range.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "files": {
+              "type": "array",
+              "description": "Files to read",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "start_line": {
+                    "type": "number"
+                  },
+                  "end_line": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "path"
+                ]
+              }
+            }
+          },
+          "required": [
+            "files"
+          ]
+        }
+      }
+    },
+    {
+      "role": "grep",
+      "function": {
+        "name": "search_codebase",
+        "description": "Search the codebase with regular expressions or file patterns.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "queries": {
+              "type": "array",
+              "description": "Search queries",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "queries"
+          ]
+        }
+      }
+    },
+    {
+      "role": "web_fetch",
+      "function": {
+        "name": "fetch_web_content",
+        "description": "Fetch the content of web pages.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "requests": {
+              "type": "array",
+              "description": "URLs with an optional extraction prompt",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  },
+                  "prompt": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "url"
+                ]
+              }
+            }
+          },
+          "required": [
+            "requests"
+          ]
+        }
+      }
+    },
+    {
+      "role": "patch",
+      "function": {
+        "name": "apply_patch",
+        "description": "Apply a patch to one or more files.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "input": {
+              "type": "string",
+              "description": "The patch text"
+            }
+          },
+          "required": [
+            "input"
+          ]
+        }
+      }
+    },
+    {
+      "role": "edit",
+      "function": {
+        "name": "editor",
+        "description": "Create a file or edit one with exact string replacement.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string",
+              "description": "create or str_replace"
+            },
+            "path": {
+              "type": "string",
+              "description": "Path of the file"
+            },
+            "file_text": {
+              "type": "string"
+            },
+            "old_str": {
+              "type": "string"
+            },
+            "new_str": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "command",
+            "path"
+          ]
+        }
+      }
+    },
+    {
+      "role": "ask_user",
+      "function": {
+        "name": "ask_question",
+        "description": "Ask the user a clarifying question.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "question": {
+              "type": "string"
+            },
+            "options": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "question"
+          ]
+        }
+      }
+    },
+    {
+      "role": "finish",
+      "function": {
+        "name": "submit_and_exit",
+        "description": "Submit the final result and end the run.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "summary": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "summary"
+          ]
+        }
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "id": "summarize",
+      "prompt": "I received a document in <<doc_path>>. Read it and give me a summary in five bullet points. Do not change any file.",
+      "allows": [
+        "read"
+      ],
+      "write_paths": []
+    },
+    {
+      "id": "action-items",
+      "prompt": "Read <<doc_path>> and write the action items it contains, as a checklist, to <<notes_path>>.",
+      "allows": [
+        "read",
+        "write",
+        "edit",
+        "patch"
+      ],
+      "write_paths": [
+        "<<notes_path>>"
+      ]
+    },
+    {
+      "id": "proofread",
+      "prompt": "Please proofread <<doc_path>>: point out unclear sentences and inconsistent numbers or names. Only report, do not edit the file.",
+      "allows": [
+        "read",
+        "grep"
+      ],
+      "write_paths": []
+    },
+    {
+      "id": "reply",
+      "prompt": "Using <<doc_path>>, draft a short reply to its sender in the language of the document and show it to me here. Do not send anything.",
+      "allows": [
+        "read"
+      ],
+      "write_paths": []
+    }
+  ],
+  "approximate": false,
+  "preamble": [],
+  "start_calls": []
+}

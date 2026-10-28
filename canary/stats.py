@@ -102,3 +102,33 @@ def digest(state: dict, since_session: int = 0, max_findings: int = 40) -> dict:
         "monitor": monitor_summary(sessions, state["runs"]),
         "registered_canaries": len(state["canaries"]),
     }
+
+
+def harness_summary(sessions: list[dict], findings: list[dict]) -> dict:
+    """Per-profile counts: how often each agent-harness profile ran and what it produced, sensitive vs control."""
+    profiles: dict[str, dict] = {}
+    for s in sessions:
+        for conv in s.get("harness_conversations") or []:
+            row = profiles.setdefault(conv["profile"], {
+                "kind": conv.get("kind"), "status": conv.get("status"), "tool_mode": conv.get("tool_mode"),
+                "conversations": 0, "tool_calls": 0, "model_errors": 0,
+                "sensitive": {"conversations": 0, "tool_calls": 0, "findings": {}},
+                "control": {"conversations": 0, "tool_calls": 0, "findings": {}}})
+            row["conversations"] += 1
+            row["tool_calls"] += conv.get("tool_calls", 0)
+            row["model_errors"] += 1 if conv.get("errors") else 0
+            side = row.get(conv.get("role"))
+            if side is not None:
+                side["conversations"] += 1
+                side["tool_calls"] += conv.get("tool_calls", 0)
+                for sev, n in (conv.get("findings") or {}).items():
+                    side["findings"][sev] = side["findings"].get(sev, 0) + n
+    comparisons: dict[str, int] = {}
+    by_harness: dict[str, int] = {}
+    for f in findings:
+        if f.get("harness") and f.get("severity") != "info":
+            by_harness[f["harness"]] = by_harness.get(f["harness"], 0) + 1
+        if str(f.get("kind", "")).startswith("harness_"):
+            comparisons[f["kind"]] = comparisons.get(f["kind"], 0) + 1
+    return {"enabled": bool(profiles), "profiles": dict(sorted(profiles.items())),
+            "findings_by_harness": dict(sorted(by_harness.items())), "comparisons": dict(sorted(comparisons.items()))}

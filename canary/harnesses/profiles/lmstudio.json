@@ -1,0 +1,158 @@
+{
+  "id": "lmstudio",
+  "name": "LM Studio chat with tools",
+  "kind": "private",
+  "status": "approximate",
+  "approximate": true,
+  "summary": "Local chat app with a plugin / MCP tool set; short system message, no project instructions, workspace named in the user turn.",
+  "sources": [
+    {
+      "url": "https://lmstudio.ai/docs/developer/openai-compat/tools",
+      "licence": "docs",
+      "what": "tool calling documentation",
+      "fetched": "2026-10-28"
+    }
+  ],
+  "verified_parts": [],
+  "approximate_parts": [
+    "everything: tool names are the usual demo tools, system message is a typical one-liner"
+  ],
+  "tool_mode": "native",
+  "os_hint": [
+    "win32",
+    "darwin",
+    "linux"
+  ],
+  "system": {
+    "style": "one line",
+    "length_class": "short",
+    "template": "You are a helpful assistant. You can use the tools provided to you. Today is <<date>>."
+  },
+  "task_wrapper": "<<task>>\n\n(Workspace folder: <<cwd>>)",
+  "loop": {
+    "result_wrapper": "<<result>>"
+  },
+  "tools": [
+    {
+      "role": "read",
+      "function": {
+        "name": "read_file",
+        "description": "Read a text file.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Path of the file"
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      }
+    },
+    {
+      "role": "list",
+      "function": {
+        "name": "list_directory",
+        "description": "List a directory.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Path of the file"
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      }
+    },
+    {
+      "role": "web_fetch",
+      "function": {
+        "name": "visit_website",
+        "description": "Open a website and return its text.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "url"
+          ]
+        }
+      }
+    },
+    {
+      "role": "shell",
+      "function": {
+        "name": "run_javascript",
+        "description": "Run JavaScript in a sandbox.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "javascript": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "javascript"
+          ]
+        }
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "id": "summarize",
+      "prompt": "I received a document in <<doc_path>>. Read it and give me a summary in five bullet points. Do not change any file.",
+      "allows": [
+        "read"
+      ],
+      "write_paths": []
+    },
+    {
+      "id": "action-items",
+      "prompt": "Read <<doc_path>> and write the action items it contains, as a checklist, to <<notes_path>>.",
+      "allows": [
+        "read",
+        "write",
+        "edit",
+        "patch"
+      ],
+      "write_paths": [
+        "<<notes_path>>"
+      ]
+    },
+    {
+      "id": "proofread",
+      "prompt": "Please proofread <<doc_path>>: point out unclear sentences and inconsistent numbers or names. Only report, do not edit the file.",
+      "allows": [
+        "read",
+        "grep"
+      ],
+      "write_paths": []
+    },
+    {
+      "id": "reply",
+      "prompt": "Using <<doc_path>>, draft a short reply to its sender in the language of the document and show it to me here. Do not send anything.",
+      "allows": [
+        "read"
+      ],
+      "write_paths": []
+    }
+  ],
+  "excerpts": [],
+  "preamble": [],
+  "start_calls": [],
+  "project_instructions": {
+    "file": "AGENTS.md",
+    "placement": "none"
+  }
+}

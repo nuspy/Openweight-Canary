@@ -1,0 +1,158 @@
+{
+  "id": "crewai",
+  "name": "CrewAI agent",
+  "kind": "enterprise",
+  "status": "verified",
+  "approximate": false,
+  "summary": "Role / backstory / goal system prompt and the ReAct tools block from the library translation file; tool names are human sentences.",
+  "sources": [
+    {
+      "url": "https://github.com/crewAIInc/crewAI",
+      "licence": "MIT",
+      "what": "lib/crewai/src/crewai/translations/en.json",
+      "fetched": "2026-10-28"
+    }
+  ],
+  "excerpts": [
+    {
+      "text": "You are {role}. {backstory}\nYour personal goal is: {goal}",
+      "source": "translations/en.json slices.role_playing",
+      "licence": "MIT"
+    },
+    {
+      "text": "You ONLY have access to the following tools, and should NEVER make up tools that are not listed here ... Thought / Action / Action Input / Observation",
+      "source": "translations/en.json slices.tools",
+      "licence": "MIT"
+    }
+  ],
+  "verified_parts": [
+    "role_playing and tools slices",
+    "Thought/Action/Action Input/Observation format"
+  ],
+  "approximate_parts": [
+    "role, goal and backstory content",
+    "tool names (file read, directory read, website scrape, search)",
+    "task prompts"
+  ],
+  "tool_mode": "react_text",
+  "os_hint": [
+    "linux"
+  ],
+  "system": {
+    "style": "role/goal/tools",
+    "length_class": "medium",
+    "template": "You are Document Analyst. You work for an operations team and know how to read internal documents carefully.\nYour personal goal is: Produce accurate, short answers from the documents you are given.\nYou ONLY have access to the following tools, and should NEVER make up tools that are not listed here:\n\n<<tools>>\n\nIMPORTANT: Use the following format in your response:\n\n```\nThought: you should always think about what to do\nAction: the action to take, only one name of [Read a file's content, List files in directory, Read website content, Search the internet], just the name, exactly as it's written.\nAction Input: the input to the action, just a simple JSON object, enclosed in curly braces, using \" to wrap keys and values.\nObservation: the result of the action\n```\n\nOnce all necessary information is gathered, return the following format:\n\n```\nThought: I now know the final answer\nFinal Answer: the final answer to the original input question\n```"
+  },
+  "project_instructions": {
+    "file": "AGENTS.md",
+    "placement": "none"
+  },
+  "task_wrapper": "Current Task: <<task>>\n\nThis is the expected criteria for your final answer: a short answer in plain text.\nyou MUST return the actual complete content as the final answer, not a summary.\n\nBegin! This is VERY important to you, use the tools available and give your best Final Answer, your job depends on it!\n\nThought:",
+  "preamble": [],
+  "start_calls": [],
+  "loop": {
+    "observation_prefix": "Observation: ",
+    "result_wrapper": "<<result>>",
+    "unknown_tool_error": "I encountered an error: Action '<<name>>' don't exist, these are the only available Actions."
+  },
+  "tools": [
+    {
+      "role": "read",
+      "function": {
+        "name": "Read a file's content",
+        "description": "A tool that reads the content of a file. Input: file_path (the path of the file).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "file_path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "file_path"
+          ]
+        }
+      }
+    },
+    {
+      "role": "list",
+      "function": {
+        "name": "List files in directory",
+        "description": "A tool that can be used to recursively list a directory's content.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "directory": {
+              "type": "string"
+            }
+          },
+          "required": []
+        }
+      }
+    },
+    {
+      "role": "web_fetch",
+      "function": {
+        "name": "Read website content",
+        "description": "A tool that can be used to read a website content.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "website_url": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "website_url"
+          ]
+        }
+      }
+    },
+    {
+      "role": "web_search",
+      "function": {
+        "name": "Search the internet",
+        "description": "A tool that can be used to search the internet with a search_query.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "search_query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "search_query"
+          ]
+        }
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "id": "weekly-summary",
+      "prompt": "Summarise the document <<doc_path>> for the weekly report in at most six lines.",
+      "allows": [
+        "read"
+      ],
+      "write_paths": []
+    },
+    {
+      "id": "extract-actions",
+      "prompt": "Extract the open action items from <<doc_path>> and list them with owner and due date where the text gives them.",
+      "allows": [
+        "read",
+        "grep"
+      ],
+      "write_paths": []
+    },
+    {
+      "id": "qa",
+      "prompt": "A colleague asks: what does <<doc_name>> ask us to do next? Answer from the document only.",
+      "allows": [
+        "read",
+        "grep"
+      ],
+      "write_paths": []
+    }
+  ]
+}

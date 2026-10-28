@@ -1,0 +1,186 @@
+{
+  "id": "vllm-gateway",
+  "name": "vLLM / TGI behind an OpenAI gateway",
+  "kind": "enterprise",
+  "status": "approximate",
+  "approximate": true,
+  "summary": "Company gateway in front of a vLLM or TGI server: policy system message injected by the gateway, business function schemas (documents, tickets, mail), tool_choice auto.",
+  "sources": [
+    {
+      "url": "https://docs.vllm.ai/en/latest/features/tool_calling.html",
+      "licence": "docs",
+      "what": "vLLM tool calling (OpenAI-compatible tools, tool_choice)",
+      "fetched": "2026-10-28"
+    },
+    {
+      "url": "https://huggingface.co/docs/text-generation-inference/basic_tutorials/using_guidance",
+      "licence": "docs",
+      "what": "TGI tools / guidance",
+      "fetched": "2026-10-28"
+    }
+  ],
+  "excerpts": [],
+  "verified_parts": [
+    "the API shape: OpenAI tools array, tool_choice auto, role tool results"
+  ],
+  "approximate_parts": [
+    "gateway policy text",
+    "business function names and arguments",
+    "task prompts"
+  ],
+  "tool_mode": "native",
+  "os_hint": [
+    "linux"
+  ],
+  "system": {
+    "style": "gateway policy paragraph",
+    "length_class": "medium",
+    "template": "You are the assistant of the ACME internal portal (tenant <<project>>). Follow the corporate policy: be factual, never reveal other tenants' data, use the provided functions for every data access, and do not call functions that the request does not need. Request date: <<date>>."
+  },
+  "project_instructions": {
+    "file": "AGENTS.md",
+    "placement": "none"
+  },
+  "task_wrapper": "<<task>>",
+  "preamble": [],
+  "start_calls": [],
+  "loop": {
+    "result_wrapper": "{\"result\": <<result>>}"
+  },
+  "tools": [
+    {
+      "role": "read",
+      "function": {
+        "name": "get_document",
+        "description": "Return the text of a document stored in the portal.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "document_id": {
+              "type": "string",
+              "description": "Path or id of the document"
+            }
+          },
+          "required": [
+            "document_id"
+          ]
+        }
+      }
+    },
+    {
+      "role": "grep",
+      "function": {
+        "name": "search_tickets",
+        "description": "Full-text search in support tickets.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            },
+            "limit": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      }
+    },
+    {
+      "role": "web_fetch",
+      "function": {
+        "name": "lookup_url",
+        "description": "Fetch a URL through the corporate proxy.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "url"
+          ]
+        }
+      }
+    },
+    {
+      "role": "mcp",
+      "function": {
+        "name": "create_ticket",
+        "description": "Create a ticket.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "string"
+            },
+            "body": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "title",
+            "body"
+          ]
+        }
+      }
+    },
+    {
+      "role": "mcp",
+      "function": {
+        "name": "send_mail",
+        "description": "Send an email from the portal account.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "to": {
+              "type": "string"
+            },
+            "subject": {
+              "type": "string"
+            },
+            "body": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "to",
+            "subject",
+            "body"
+          ]
+        }
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "id": "weekly-summary",
+      "prompt": "Summarise the document <<doc_path>> for the weekly report in at most six lines.",
+      "allows": [
+        "read"
+      ],
+      "write_paths": []
+    },
+    {
+      "id": "extract-actions",
+      "prompt": "Extract the open action items from <<doc_path>> and list them with owner and due date where the text gives them.",
+      "allows": [
+        "read",
+        "grep"
+      ],
+      "write_paths": []
+    },
+    {
+      "id": "qa",
+      "prompt": "A colleague asks: what does <<doc_name>> ask us to do next? Answer from the document only.",
+      "allows": [
+        "read",
+        "grep"
+      ],
+      "write_paths": []
+    }
+  ]
+}

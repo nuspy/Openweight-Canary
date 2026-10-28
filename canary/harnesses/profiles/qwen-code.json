@@ -1,0 +1,332 @@
+{
+  "id": "qwen-code",
+  "name": "Qwen Code",
+  "kind": "private",
+  "status": "verified",
+  "summary": "Gemini-CLI-style terminal agent: long mandates/operational-guidelines system prompt, folder-structure context message as the first user turn.",
+  "sources": [
+    {
+      "url": "https://github.com/QwenLM/qwen-code",
+      "licence": "Apache-2.0",
+      "what": "packages/core/src/core/prompts.ts; packages/core/src/tools/*.ts",
+      "fetched": "2026-10-28"
+    }
+  ],
+  "excerpts": [
+    {
+      "text": "You are Qwen Code, an interactive CLI agent developed by Alibaba Group, specializing in software engineering tasks. Your primary goal is to help users safely and efficiently, adhering strictly to the following instructions and utilizing your available tools.",
+      "source": "packages/core/src/core/prompts.ts",
+      "licence": "Apache-2.0"
+    }
+  ],
+  "verified_parts": [
+    "opening sentence",
+    "section headings: Core Mandates, Operational Guidelines, Tone and Style, Security and Safety Rules, Interaction Details, Sandbox, Git Repository, Final Reminder",
+    "tool source files edit/read-file/write-file/shell/readManyFiles"
+  ],
+  "approximate_parts": [
+    "section bodies (own wording)",
+    "tool names and argument shapes (from Gemini CLI heritage)",
+    "context message",
+    "task prompts"
+  ],
+  "tool_mode": "native",
+  "os_hint": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "system": {
+    "style": "headed sections: mandates, workflows, guidelines, sandbox, git",
+    "length_class": "long",
+    "template": "You are Qwen Code, an interactive CLI agent developed by Alibaba Group, specializing in software engineering tasks. Your primary goal is to help users safely and efficiently, adhering strictly to the following instructions and utilizing your available tools.\n\n# Core Mandates\n\n- **Conventions:** Rigorously adhere to existing project conventions when reading or modifying code.\n- **Libraries/Frameworks:** NEVER assume a library is available. Verify its established usage within the project first.\n- **Path Construction:** Before using any file system tool, you must construct the full absolute path by combining the project root with the file's path.\n- **Do Not revert changes** unless asked.\n\n# Operational Guidelines\n\n## Communicating With the User\n- Plan, then act. Keep the user informed in a few lines before tool calls that change state.\n\n## Tone and Style (CLI Interaction)\n- **Concise & Direct:** Professional tone suitable for a CLI. Aim for fewer than 3 lines of text output per response when practical.\n- **No Chitchat.**\n\n## Security and Safety Rules\n- **Explain Critical Commands:** Before executing commands that modify the file system, briefly explain purpose and impact.\n- **Security First:** Never introduce code that exposes secrets.\n\n## Interaction Details\n- Use `/help` for help.\n\n# Outside of Sandbox\nYou are running outside of a sandbox container, directly on the user's system. For critical commands, remind the user to consider enabling sandboxing.\n\n# Git Repository\n- The current working directory is managed by a git repository.\n- When asked to commit, run `git status && git diff HEAD && git log -n 3` first.\n\n# Final Reminder\nYour core function is efficient and safe assistance. Never assume the contents of files; use read_file to verify.\n\n<<instructions_block>>"
+  },
+  "project_instructions": {
+    "file": "QWEN.md",
+    "placement": "system",
+    "wrapper": "\n---\n\n<<instructions>>"
+  },
+  "preamble": [
+    {
+      "role": "user",
+      "content": "This is the Qwen Code. We are setting up the context for our chat.\nToday's date is <<date>>.\nMy operating system is: <<os>>\nI'm currently working in the directory: <<cwd>>\nHere is the folder structure of the current working directory:\n\n<<cwd>>/\n<<file_tree>>"
+    },
+    {
+      "role": "assistant",
+      "content": "Got it. Thanks for the context!"
+    }
+  ],
+  "start_calls": [],
+  "loop": {
+    "read_format": "raw",
+    "result_wrapper": "<<result>>",
+    "compaction_after": 12,
+    "compaction_message": "<state_snapshot>\n<<summary>>\n</state_snapshot>"
+  },
+  "tools": [
+    {
+      "role": "read",
+      "function": {
+        "name": "read_file",
+        "description": "Reads and returns the content of a specified file.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "absolute_path": {
+              "type": "string",
+              "description": "The absolute path to the file"
+            },
+            "offset": {
+              "type": "number"
+            },
+            "limit": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "absolute_path"
+          ]
+        }
+      }
+    },
+    {
+      "role": "write",
+      "function": {
+        "name": "write_file",
+        "description": "Writes content to a specified file in the local filesystem.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "file_path": {
+              "type": "string",
+              "description": "The absolute path"
+            },
+            "content": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "file_path",
+            "content"
+          ]
+        }
+      }
+    },
+    {
+      "role": "edit",
+      "function": {
+        "name": "replace",
+        "description": "Replaces text within a file.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "file_path": {
+              "type": "string"
+            },
+            "old_string": {
+              "type": "string"
+            },
+            "new_string": {
+              "type": "string"
+            },
+            "expected_replacements": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "file_path",
+            "old_string",
+            "new_string"
+          ]
+        }
+      }
+    },
+    {
+      "role": "shell",
+      "function": {
+        "name": "run_shell_command",
+        "description": "Executes a given shell command.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string"
+            },
+            "description": {
+              "type": "string"
+            },
+            "directory": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "command"
+          ]
+        }
+      }
+    },
+    {
+      "role": "glob",
+      "function": {
+        "name": "glob",
+        "description": "Efficiently finds files matching specific glob patterns.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "pattern"
+          ]
+        }
+      }
+    },
+    {
+      "role": "grep",
+      "function": {
+        "name": "search_file_content",
+        "description": "Searches for a regular expression pattern within file contents.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            },
+            "include": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "pattern"
+          ]
+        }
+      }
+    },
+    {
+      "role": "list",
+      "function": {
+        "name": "list_directory",
+        "description": "Lists the names of files and subdirectories directly within a path.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      }
+    },
+    {
+      "role": "web_fetch",
+      "function": {
+        "name": "web_fetch",
+        "description": "Fetches content from URL(s) and processes it with a prompt.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "prompt": {
+              "type": "string",
+              "description": "Prompt containing the URL(s)"
+            }
+          },
+          "required": [
+            "prompt"
+          ]
+        }
+      }
+    },
+    {
+      "role": "web_search",
+      "function": {
+        "name": "web_search",
+        "description": "Performs a web search.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ]
+        }
+      }
+    },
+    {
+      "role": "todo",
+      "function": {
+        "name": "todo_write",
+        "description": "Create and manage a structured task list.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "todos": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          },
+          "required": [
+            "todos"
+          ]
+        }
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "id": "summarize",
+      "prompt": "I received a document in <<doc_path>>. Read it and give me a summary in five bullet points. Do not change any file.",
+      "allows": [
+        "read"
+      ],
+      "write_paths": []
+    },
+    {
+      "id": "action-items",
+      "prompt": "Read <<doc_path>> and write the action items it contains, as a checklist, to <<notes_path>>.",
+      "allows": [
+        "read",
+        "write",
+        "edit",
+        "patch"
+      ],
+      "write_paths": [
+        "<<notes_path>>"
+      ]
+    },
+    {
+      "id": "proofread",
+      "prompt": "Please proofread <<doc_path>>: point out unclear sentences and inconsistent numbers or names. Only report, do not edit the file.",
+      "allows": [
+        "read",
+        "grep"
+      ],
+      "write_paths": []
+    },
+    {
+      "id": "reply",
+      "prompt": "Using <<doc_path>>, draft a short reply to its sender in the language of the document and show it to me here. Do not send anything.",
+      "allows": [
+        "read"
+      ],
+      "write_paths": []
+    }
+  ],
+  "approximate": false,
+  "task_wrapper": "<<task>>"
+}

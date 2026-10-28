@@ -14,6 +14,7 @@ from . import __version__
 from .config import Config, ConfigError, load_config, sample_config
 from .findings import verify_chain
 from . import launch
+from . import harnesses as harness_lib
 from .materials import SOURCES_SAMPLE, MaterialStore, fetch_sources
 from .registry import Registry
 from .presets import build_config, describe
@@ -43,6 +44,8 @@ def _overrides(args) -> dict:
         "target.api_key": getattr(args, "target_api_key", None),
         "monitor.base_url": getattr(args, "monitor_url", None),
         "monitor.api_key": getattr(args, "monitor_api_key", None),
+        "harnesses": getattr(args, "harness", None),
+        "harness_turns": getattr(args, "harness_turns", None),
     }
 
 
@@ -90,6 +93,14 @@ def cmd_init(args) -> int:
               f"target {config['target']['base_url']}")
     else:
         config = sample_config()
+    if args.harness:
+        try:
+            config["harnesses"] = harness_lib.select(args.harness, getattr(args, "harness_dir", None))
+        except harness_lib.ProfileError as exc:
+            raise ConfigError(str(exc)) from exc
+        if getattr(args, "harness_dir", None):
+            config["harness_dir"] = str(args.harness_dir)
+        print(f"harnesses: {', '.join(config['harnesses'])}")
     for name, content in (("canary.json", config), ("sources.json", SOURCES_SAMPLE)):
         target = base / name
         if target.exists() and not args.force:
@@ -97,6 +108,25 @@ def cmd_init(args) -> int:
             continue
         write_json(target, content)
         print(f"wrote {target}")
+    return 0
+
+
+def cmd_harnesses(args) -> int:
+    try:
+        rows = harness_lib.listing(args.dir)
+    except harness_lib.ProfileError as exc:
+        raise ConfigError(str(exc)) from exc
+    if args.kind:
+        rows = [r for r in rows if r["kind"] == args.kind]
+    if args.json:
+        print(json.dumps({"version": __version__, "count": len(rows), "harnesses": rows},
+                         ensure_ascii=False, indent=2))
+        return 0
+    print(f"{'id':<14} {'kind':<11} {'status':<12} {'mode':<11} source")
+    for r in rows:
+        print(f"{r['id']:<14} {r['kind']:<11} {r['status']:<12} {r['tool_mode']:<11} {r['source']}")
+    print("\nverified = prompt or tool shapes taken from a public primary source (see docs/harnesses.md); "
+          "approximate = written from general knowledge")
     return 0
 
 
@@ -112,7 +142,8 @@ def cmd_run(args) -> int:
     if args.json_status:
         print(launch.status_line({"event": "start", "run_id": runner.run_id, "pid": os.getpid(),
                                   "target": cfg.target["base_url"], "model": cfg.target["model"],
-                                  "runtime": cfg.runtime, "vendor": cfg.vendor, "state_dir": str(cfg.state_dir)}),
+                                  "runtime": cfg.runtime, "vendor": cfg.vendor, "state_dir": str(cfg.state_dir),
+                                  "harnesses": list(cfg.harnesses)}),
               flush=True)
         reason = runner.run(max_sessions=args.max_sessions)
         print(launch.status_line({"event": "end", "run_id": runner.run_id, "reason": reason}), flush=True)
@@ -235,7 +266,16 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--vendor", help="vendor id, when the model name does not reveal it")
     p.add_argument("--target-url", help="base URL if the server is not on the runtime default")
     p.add_argument("--vendors", help="extra vendors file (default ./vendors.local.json when present)")
+    p.add_argument("--harness", help="agent-harness profiles to simulate: ids separated by commas, or all "
+                   "(see 'harnesses')")
+    p.add_argument("--harness-dir", help="extra directory with profile .json files")
     p.set_defaults(func=cmd_init)
+
+    p = sub.add_parser("harnesses", help="list the agent-harness profiles the canary can simulate")
+    p.add_argument("--json", action="store_true", help="machine-readable output")
+    p.add_argument("--kind", choices=list(harness_lib.KINDS))
+    p.add_argument("--dir", help="extra directory with profile .json files")
+    p.set_defaults(func=cmd_harnesses)
 
     p = sub.add_parser("netwatch", help="built-in connection sampler serving /api/netwatch/* for a runtime")
     p.add_argument("--runtime", help="runtime id: watches its usual process names")
@@ -257,6 +297,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--sessions-per-hour", type=float)
     p.add_argument("--seed", type=int)
     p.add_argument("--max-sessions", type=int, help="stop after this many sessions in this run")
+    p.add_argument("--harness", help="harness profile ids (comma separated) or all; overrides the config")
+    p.add_argument("--harness-turns", type=int, help="tool-loop turns per harness conversation")
     p.add_argument("--target-url")
     p.add_argument("--target-kind", choices=["openai", "anthropic"])
     p.add_argument("--target-model")
