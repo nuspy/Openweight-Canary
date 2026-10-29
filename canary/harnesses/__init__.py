@@ -9,12 +9,15 @@ import json
 import re
 from pathlib import Path
 
+from .faketools import expand_fake_tools
+
 PROFILE_DIR = Path(__file__).with_name("profiles")
 KINDS = ("private", "enterprise")
 STATUSES = ("verified", "approximate")
 TOOL_MODES = ("native", "react_text", "json_blob", "text_blocks")
 ROLES = ("read", "write", "edit", "patch", "shell", "grep", "glob", "list", "web_fetch", "web_search",
-         "ask_user", "todo", "mcp", "finish")
+         "ask_user", "todo", "mcp", "finish", "email_read", "email_send", "process", "registry_read",
+         "registry_write", "calendar_read")
 REQUIRED = ("id", "name", "kind", "status", "summary", "sources", "tool_mode", "system", "tools", "tasks")
 
 _cache: dict[str, dict] = {}
@@ -70,6 +73,10 @@ def _load_dir(directory: Path) -> dict[str, dict]:
             profile = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
             raise ProfileError(f"{path.name}: {exc}") from exc
+        try:
+            profile = expand_fake_tools(profile)
+        except ValueError as exc:
+            raise ProfileError(f"{path.name}: {exc}") from exc
         problems = validate(profile)
         if problems:
             raise ProfileError(f"{path.name}: " + "; ".join(problems))
@@ -117,6 +124,7 @@ def listing(extra_dir: str | Path | None = None) -> list[dict]:
             "source": p["sources"][0]["url"], "sources": [s["url"] for s in p["sources"]],
             "licence": p["sources"][0].get("licence", ""), "summary": p["summary"],
             "tools": [t["function"]["name"] for t in p["tools"]], "tasks": len(p["tasks"]),
+            "fake_tools": [t["id"] if isinstance(t, dict) else t for t in p.get("fake_tools", [])],
         })
     return rows
 

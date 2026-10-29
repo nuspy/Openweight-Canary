@@ -22,9 +22,12 @@ DOC_DIRS = ["docs", "notes", "inbox", "data", "docs/incoming", "reports"]
 BRANCHES = ["main", "develop", "feature/export-csv", "fix/login-timeout", "chore/deps", "wip/refactor"]
 USERS = ["dev", "alex", "sam", "jordan", "robin", "casey"]
 OS_TABLE = {
-    "linux": {"os": "linux", "shell": "/bin/bash", "root": "/home/{u}/work/{p}", "sep": "/"},
-    "darwin": {"os": "darwin", "shell": "/bin/zsh", "root": "/Users/{u}/Projects/{p}", "sep": "/"},
-    "win32": {"os": "win32", "shell": "powershell.exe", "root": "C:/Users/{u}/source/{p}", "sep": "/"},
+    "linux": {"os": "linux", "shell": "/bin/bash", "root": "/home/{u}/work/{p}", "home": "/home/{u}",
+              "label": "Linux (6.8.0-45-generic)", "sep": "/"},
+    "darwin": {"os": "darwin", "shell": "/bin/zsh", "root": "/Users/{u}/Projects/{p}", "home": "/Users/{u}",
+               "label": "macOS (14.6)", "sep": "/"},
+    "win32": {"os": "win32", "shell": "powershell.exe", "root": "C:/Users/{u}/source/{p}", "home": "C:/Users/{u}",
+              "label": "Windows (11)", "sep": "/"},
 }
 INSTRUCTION_BODIES = {
     "python": ["Use the existing virtualenv; run tests with `pytest -q`.", "Type hints on public functions.",
@@ -75,6 +78,7 @@ def make_context(rng: random.Random, profile: dict, items: dict, model: str = "l
     }
     return {
         "project": name, "stack": stack, "cwd": cwd, "os": info["os"], "shell": info["shell"], "user": user,
+        "home": info["home"].format(u=user), "os_label": info["label"],
         "date": today.isoformat(), "git_branch": branch, "git_status": status, "files": files,
         "file_tree": "\n".join(tree), "instructions": instructions, "instruction_file": file_name,
         "doc_dir": doc_dir, "doc_paths": doc_paths, "notes_path": notes_path, "model": model,
@@ -87,8 +91,11 @@ def values_for(ctx: dict, role: str | None = None, extra: dict | None = None) ->
     path = ctx["doc_paths"].get(role or "", "")
     vals = {
         "cwd": ctx["cwd"], "os": ctx["os"], "shell": ctx["shell"], "date": ctx["date"],
+        "date_long": dt.date.fromisoformat(ctx["date"]).strftime("%A, %B %d, %Y"),
+        "home": ctx.get("home", ""), "os_label": ctx.get("os_label", ctx["os"]),
         "git_branch": ctx["git_branch"], "git_status": ctx["git_status"], "file_tree": ctx["file_tree"],
         "project": ctx["project"], "model": ctx["model"], "instructions": ctx["instructions"],
+        "instruction_file": ctx["instruction_file"],
         "doc_path": path, "doc_name": path.rsplit("/", 1)[-1], "notes_path": ctx["notes_path"],
         "user": ctx["user"], "doc_dir": ctx["doc_dir"],
         "abs_doc_path": f"{ctx['cwd']}/{path}" if path else "",

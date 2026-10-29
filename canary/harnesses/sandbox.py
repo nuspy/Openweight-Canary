@@ -2,22 +2,28 @@
 from __future__ import annotations
 
 import fnmatch
+import json
 import re
 
 from ..detect import classify_shell, norm_path, outside_project, tool_commands, tool_paths, tool_urls
 from ..util import host_of
+from .fixtures import Fixtures, document_facts
 
 NOT_FOUND = "Error: file not found: {path}"
 OUTSIDE = "Error: path is outside the workspace: {path}"
 MAX_READ = 6000
 MAX_GREP = 25
+FIXTURE_ROLES = ("email_read", "email_send", "process", "registry_read", "registry_write", "calendar_read")
 
 
 class FakeWorld:
     """Nothing here touches the disk, the network or a shell; calls other than reads are only recorded."""
 
-    def __init__(self, ctx: dict, docs: dict[str, str], read_format: str = "numbered"):
+    def __init__(self, ctx: dict, docs: dict[str, str], read_format: str = "numbered", item=None,
+                 results: dict[str, str] | None = None):
         self.ctx = ctx
+        self.results = results or {}
+        self.fixtures = Fixtures(ctx, document_facts(item)) if item is not None else None
         self.docs = {norm_path(p, ctx["cwd"]).lower(): (p, t) for p, t in docs.items()}
         for path, text in ctx.get("decoys", {}).items():
             self.docs.setdefault(norm_path(path, ctx["cwd"]).lower(), (path, text))
@@ -36,6 +42,8 @@ class FakeWorld:
         text = text[:MAX_READ]
         if self.read_format == "numbered":
             return "\n".join(f"{i:>6}\t{line}" for i, line in enumerate(text.splitlines(), 1))
+        if self.read_format == "pipe":
+            return "\n".join(f"{i:>6}|{line}" for i, line in enumerate(text.splitlines(), 1))
         if self.read_format == "xml":
             return f"<file path=\"{path}\">\n{text}\n</file>"
         return text
@@ -126,22 +134,48 @@ class FakeWorld:
         if role in ("list", "glob"):
             return self.listing(args)
         if role == "grep":
-            return self.grep(args)
+            return self.listing(args) if args.get("target") == "files" else self.grep(args)
         if role == "shell":
             return self.shell(args)
         if role in ("web_fetch", "web_search"):
             return self.web(role, name, args)
         if role in ("write", "edit", "patch"):
             self._record(role, name, args)
-            return "File written successfully." if role == "write" else "The edit was applied."
+            return self.results.get(name) or ("File written successfully." if role == "write" else "The edit was applied.")
         if role == "todo":
-            return "Todo list updated."
+            return self.results.get(name, "Todo list updated.")
         if role == "ask_user":
-            return "The user is not available; continue with your best judgement."
+            return self.results.get(name, "The user is not available; continue with your best judgement.")
         if role == "mcp":
             self._record(role, name, args)
-            return "ok"
+            return self.results.get(name, "ok")
+        if role in FIXTURE_ROLES:
+            return self.fixture(role, name, args)
         if role == "finish":
             return "Done."
         self._record("unknown", name, args)
         return f"Error: unknown tool {name}"
+
+    def fixture(self, role: str, name: str, args) -> str:
+        """Mail, process, registry and calendar tools: invented answers; sends and writes are only recorded."""
+        fx = self.fixtures
+        if fx is None:
+            return f"Error: {name} is not available"
+        if role == "email_read":
+            return fx.email_read(args)
+        if role == "email_send":
+            self._record(role, name, args, "recipients outside the mailbox: " + ",".join(fx.foreign_recipients(args)))
+            return fx.email_send(args)
+        if role == "calendar_read":
+            return fx.calendar_read(args)
+        if role == "registry_read":
+            return fx.registry_read(args)
+        if role == "registry_write":
+            self._record(role, name, args, "in-memory only")
+            return fx.registry_write(args)
+        if args.get("action") is None:
+            return fx.process_table(args)
+        if args["action"] == "list":
+            return json.dumps({"processes": []})
+        self._record(role, name, args)
+        return json.dumps({"error": "no such process session"})

@@ -80,7 +80,8 @@ class HarnessRun:
         for name, r in self.roles.items():
             self.name_of_role.setdefault(r, name)
         docs = {ctx["doc_paths"][role]: item.text}
-        self.world = FakeWorld(ctx, docs, self.loop.get("read_format", "numbered"))
+        results = {t["function"]["name"]: t["fake_result"] for t in profile["tools"] if t.get("fake_result")}
+        self.world = FakeWorld(ctx, docs, self.loop.get("read_format", "numbered"), item, results)
         self.values = values_for(ctx, role, {"doc_content": item.text, "task": "", "tools": tools_text(profile)})
         self.messages: list[dict] = []
         self.calls: list[dict] = []
@@ -233,7 +234,8 @@ class HarnessRun:
                 "write_paths": [render(p, self.values) for p in self.task.get("write_paths", [])]}
 
     def scan_ctx(self) -> dict:
-        return {"cwd": self.ctx["cwd"], "known_hosts": self.ctx.get("known_hosts", [])}
+        return {"cwd": self.ctx["cwd"], "known_hosts": self.ctx.get("known_hosts", []),
+                "mail_domains": sorted(self.world.fixtures.mail_domains)}
 
     def transcript(self) -> list[dict]:
         return [{"role": m["role"], "content": (m.get("content") or "")[:3000],
