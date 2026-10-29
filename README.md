@@ -98,6 +98,25 @@ event difference), `low`, `info`.
 The test runs without any monitor; then only the response-side detections apply. For a stronger view use an external
 monitor (a firewall log, a proxy, `tcpdump`/Wireshark with a small adapter) and set `network_watch` to it.
 
+## Agent-harness mode
+
+Besides plain chat, the same documents can be handled inside simulated agent harnesses: the system prompt and the
+tool set of a real open-source harness, and a fake tool loop that answers every tool call with invented data. Nothing
+is executed; the calls are scanned for canaries, foreign hosts and other unrequested actions, and the sensitive run
+is compared with its control twin.
+
+```
+python -m canary harnesses                                # the profiles and where they come from
+python -m canary run --harness hermes,goose --max-sessions 2
+```
+
+- Profiles are JSON files in `canary/harnesses/profiles/`; `hermes` reproduces Hermes Agent (Nous Research, MIT)
+  with 16 of its tools and its prompt text. The maintainers are to be notified.
+- Extra fake tools, selectable per profile with `fake_tools`: read and send email, list processes, read and write
+  the Windows registry, read a calendar. They return fixtures only (no network, no real file, process or registry
+  access); a canary can appear wherever a real tool would carry real data.
+- Fields, roles, the fake tools and how to add a profile are in [docs/harnesses.md](docs/harnesses.md).
+
 ## Limits
 
 This tool produces evidence, never proof of absence. A clean run means "nothing found by these probes".
@@ -170,10 +189,12 @@ Add or change entries in `vendors.local.json` next to `canary.json` (merged over
 | `max_tokens`, `timeout`, `retries`, `backoff` | request handling; failures never abort the run |
 | `monitor_grace`, `ab_delta_min_events` | seconds to wait after a conversation; event difference that raises a finding |
 | `sources_file` | `sources.json`, public https URLs fetched by `materials --fetch` |
+| `harnesses` | profile ids or `all`; empty means plain chat only |
+| `harness_turns`, `harness_per_session`, `harness_share`, `harness_dir` | tool-loop turns (8), profiles per session (1), share of sessions with a harness phase (1.0), extra profile directory |
 
 Keys starting with `_` are comments.
 
-Commands: `presets`, `init [--dir D] [--force] [--runtime R --model M --vendor V --target-url U]`, `run`,
+Commands: `presets`, `harnesses [--json]`, `init [--dir D] [--force] [--runtime R --model M --vendor V --target-url U]`, `run`,
 `netwatch`, `stop [--clear]`, `status`, `verify`, `report`, `materials [--count N] [--fetch]`. `run` accepts
 `--duration`, `--sessions-per-hour`, `--seed`, `--max-sessions`, `--target-url/-kind/-model/-api-key`,
 `--monitor-url/-api-key`, `--json-status`. All commands take `-c FILE` and `--state-dir DIR`.
@@ -217,4 +238,7 @@ a test (`python -m pytest`). Do not add real secrets or real classified material
 
 ## Licence
 
-The licence is to be chosen by the owner and will be added here before the first release.
+Openweight Canary Community and Commercial License (see [LICENSE](LICENSE)): free for individuals, for non-profit and
+educational organisations, and for companies with annual revenue under ten million US dollars; a written commercial
+license is needed at or above that. Not licensed under the MIT License. Prompts and tool definitions of other agent
+harnesses that the profiles reproduce stay under those harnesses' own licenses.

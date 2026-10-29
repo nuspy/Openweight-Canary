@@ -9,15 +9,16 @@ description = "Black-box canary test that looks for data leaks and exfiltration 
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = []
+license = { file = "LICENSE" }
 
 [project.scripts]
 openweight-canary = "canary.cli:main"
 
 [tool.setuptools]
-packages = ["canary"]
+packages = ["canary", "canary.harnesses"]
 
 [tool.setuptools.package-data]
-canary = ["vendors.json"]
+canary = ["vendors.json", "harnesses/profiles/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
