@@ -1,10 +1,10 @@
 import "./styles.css";
-import { animate, inView, stagger } from "framer-motion/dom";
+import { animate, inView, scroll, stagger } from "framer-motion/dom";
 import { initTranslation } from "./translate.js";
+import { initComputers, initConsole, initHarness, initPeople, initSpotlight, playHero, reduced } from "./ui.js";
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
-const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const ROUTES = $$(".page").map((p) => p.dataset.route);
 
 /* ---- tabs: one page at a time, the address says which (deep links work) ---- */
@@ -15,31 +15,29 @@ menuBtn.addEventListener("click", () => {
 });
 let current = "";
 
-/* the one orchestrated moment: the two sessions run, and the two extra steps are caught */
-function playHero() {
-  const lines = $$("#home .diff .ln");
-  const flags = $$("#home .diff .ln.flag");
-  const verdicts = $$("#home .diff .verdict");
-  if (reduced) return;
-  lines.forEach((l) => { l.style.opacity = "0"; });
-  verdicts.forEach((v) => { v.style.opacity = "0"; });
-  animate(lines, { opacity: [0, 1], transform: ["translateX(-6px)", "translateX(0)"] }, { delay: stagger(0.09, { startDelay: 0.25 }), duration: 0.3 });
-  const after = 0.25 + lines.length * 0.09 + 0.25;
-  animate(verdicts, { opacity: [0, 1], transform: ["translateY(6px)", "translateY(0)"] }, { delay: stagger(0.35, { startDelay: after }), duration: 0.4 });
-  animate(flags, { boxShadow: ["inset 3px 0 0 #ff6b6b, 0 0 0 0 rgba(255,107,107,0)", "inset 3px 0 0 #ff6b6b, 0 0 0 4px rgba(255,107,107,.35)", "inset 3px 0 0 #ff6b6b, 0 0 0 0 rgba(255,107,107,0)"] }, { delay: after + 0.45, duration: 0.9 });
-}
-
 function countUp() {
   $$("#home .ledger b[data-count]").forEach((el) => {
     const to = Number(el.dataset.count);
     if (reduced || !to) return;
-    inView(el, () => { animate(0, to, { duration: 0.9, ease: "easeOut", onUpdate: (v) => { el.textContent = Math.round(v); } }); }, { amount: 0.6 });
+    el.textContent = "0";
+    inView(el, () => { animate(0, to, { duration: 1.1, ease: "easeOut", onUpdate: (v) => { el.textContent = Math.round(v); } }); }, { amount: 0.6 });
+  });
+}
+
+const REVEAL = ".card, .tile, .ctx, .catch article, .node, .mini, .tier, .dl-card, .card2, .wake, .rows, .plate, .ledger, .scale li, .win, .page-h, .block > h2, .split > div";
+function reveal(page) {
+  if (reduced) return;
+  $$(REVEAL, page).forEach((el) => {
+    if (el.closest("#home .hero")) return;
+    el.style.opacity = "0";
+    inView(el, () => { animate(el, { opacity: [0, 1], transform: ["translateY(18px)", "translateY(0)"] }, { duration: 0.55, ease: [0.22, 1, 0.36, 1] }); }, { amount: 0.12 });
   });
 }
 
 function show(route, focus) {
   if (!ROUTES.includes(route)) route = "home";
   if (route === current) return;
+  const from = ROUTES.indexOf(current), to = ROUTES.indexOf(route);
   current = route;
   $$(".page").forEach((p) => { p.hidden = p.dataset.route !== route; });
   $$("a[data-route]", nav).forEach((a) => (a.dataset.route === route ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current")));
@@ -50,12 +48,10 @@ function show(route, focus) {
   window.scrollTo({ top: 0, behavior: "auto" });
   if (focus) $("#main").focus({ preventScroll: true });
   if (!reduced) {
-    animate(page, { opacity: [0, 1], transform: ["translateY(10px)", "translateY(0)"] }, { duration: 0.3, ease: "easeOut" });
-    if (route !== "home") {
-      const items = $$(".win, .plate, .tile, .ctx, .row, .tier, .dl-card, .card2, .scale li, .cols3 > div", page);
-      items.forEach((c) => { c.style.opacity = "0"; });
-      inView(page, () => { animate(items, { opacity: [0, 1], transform: ["translateY(8px)", "translateY(0)"] }, { delay: stagger(0.035), duration: 0.32, ease: "easeOut" }); }, { amount: 0.05 });
-    }
+    const dx = from < 0 ? 0 : (to > from ? 28 : -28);
+    animate(page, { opacity: [0, 1], transform: [`translateX(${dx}px)`, "translateX(0)"] }, { duration: 0.4, ease: [0.22, 1, 0.36, 1] });
+    animate($$(".page-h > *", page), { opacity: [0, 1], transform: ["translateY(14px)", "translateY(0)"] }, { delay: stagger(0.07, { startDelay: 0.05 }), duration: 0.5, ease: [0.22, 1, 0.36, 1] });
+    reveal(page);
   }
   if (route === "home") playHero();
   translation?.retranslate(page);
@@ -69,6 +65,10 @@ const translation = initTranslation({
   roots: () => [$(".top"), $("#main"), $(".foot")],
   firstRoot: () => $(`#${current || "home"}`),
 });
+
+initSpotlight(); initConsole(); initComputers(); initPeople(); initHarness();
+$("#replay")?.addEventListener("click", playHero);
+if (!reduced) scroll(animate($("#progress"), { transform: ["scaleX(0)", "scaleX(1)"] }, { ease: "linear" }));
 
 route();
 countUp();
