@@ -32,6 +32,7 @@ class FindingsLog:
         self.run_id = run_id
         self._lock = threading.Lock()
         self.harness: str | None = None
+        self.on_record = None                       # called with each record after it is written: the alerts hook
         self._count = 0
         self._prev = GENESIS
         for rec in read_jsonl(self.path):
@@ -57,7 +58,12 @@ class FindingsLog:
                 fh.write(json.dumps(record, ensure_ascii=False) + "\n")
             self._count += 1
             self._prev = record["hash"]
-            return record
+        if self.on_record is not None:
+            try:
+                self.on_record(record)
+            except Exception:                       # a failing alert never stops the test
+                pass
+        return record
 
 
 def read_findings(path: Path) -> list[dict]:

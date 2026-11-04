@@ -221,6 +221,15 @@ def cmd_status(args) -> int:
         print("running: no")
     if stop_path(state_dir).exists():
         print("STOP file present")
+    if (state_dir / "ALERTS.md").exists():
+        print(f"ALERTS: {sum(1 for l in (state_dir / 'ALERTS.md').read_text(encoding='utf-8').splitlines() if l.startswith('## '))} "
+              f"(read {state_dir / 'ALERTS.md'})")
+    return 0
+
+
+def cmd_alerts(args) -> int:
+    path = _state_dir(args) / "ALERTS.md"
+    print(path.read_text(encoding="utf-8") if path.exists() else "no alerts")
     return 0
 
 
@@ -320,6 +329,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_stop)
 
     for name, func, text in (("status", cmd_status, "show counters and findings"),
+                             ("alerts", cmd_alerts, "print the alerts: findings a person should read"),
                              ("verify", cmd_verify, "verify the findings hash chain"),
                              ("report", cmd_report, "write report.md and report.json")):
         p = sub.add_parser(name, help=text)

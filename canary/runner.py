@@ -11,6 +11,7 @@ from pathlib import Path
 
 from .config import Config
 from .detect import hosts_in, scan_event, scan_hit, scan_response
+from .alerts import Alerts
 from .findings import SEVERITIES, FindingsLog, read_findings
 from .generator import LLMSource
 from .harnesses.session import run_harness_phase
@@ -98,6 +99,8 @@ class Runner:
         self.reviewer = make_reviewer(cfg)
         self.registry = Registry(self.state / "canaries.jsonl")
         self.findings = FindingsLog(self.state / "findings.jsonl", self.run_id)
+        self.alerts = Alerts(self.state, cfg.alerts)
+        self.findings.on_record = self.alerts.handle
         opts = {"timeout": cfg.timeout, "retries": cfg.retries, "backoff": cfg.backoff, "sleep": sleep}
         self.target = Provider(cfg.target, **opts)
         gens = [Provider(g, **opts) for g in cfg.generators]
