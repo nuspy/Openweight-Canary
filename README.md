@@ -54,9 +54,9 @@ also installs the `openweight-canary` command. Run the tests with `python -m pyt
 | TGI | `tgi` | `http://127.0.0.1:3000` | usage stats on by default; `--usage-stats off` |
 | mlx-lm | `mlx-lm` | `http://127.0.0.1:8080` | |
 | TensorRT-LLM | `trtllm` | `http://127.0.0.1:8000` | `trtllm-serve` |
-| Basalt | `basalt` | `http://127.0.0.1:8080` | uses Basalt's own Security monitor (netwatch API) |
+| Basalt / TaDaMoo | `basalt` | `http://127.0.0.1:7232` | uses Basalt's own Security monitor (netwatch API) |
 | Strata | `strata` | `http://127.0.0.1:8080` | no monitor of its own: built-in sampler |
-| anything else | `generic` | `http://127.0.0.1:8080` | any OpenAI-compatible server |
+| anything else | `generic` | `http://127.0.0.1:7232` | any OpenAI-compatible server |
 
 If the server needs a key, put it in `target.api_key` (or `env:NAME` to read an environment variable). Each preset
 other than Basalt writes `"network_watch": {"mode": "builtin", ...}`; edit `process_names` if your server runs under
@@ -90,7 +90,7 @@ event difference), `low`, `info`.
 
 | monitor | when |
 |---|---|
-| Basalt Security monitor | `"monitor": {"base_url": "http://127.0.0.1:8080"}`; default for `--runtime basalt` |
+| Basalt Security monitor | `"monitor": {"base_url": "http://127.0.0.1:7232"}`; default for `--runtime basalt` |
 | built-in sampler | `"network_watch": {"mode": "builtin", ...}`; default for every other runtime; samples the OS connection table for the runtime's processes |
 | `python -m canary netwatch --runtime vllm` | the same sampler as a small HTTP server on port 8098, for other tools or another shell |
 | any other tool | `"network_watch": "http://host:port"` or `{"base_url": ..., "command": "..."}` if it serves `/api/netwatch/status` and `/api/netwatch/events` (see `docs/design.md`) |

@@ -70,9 +70,9 @@ SambaNova, Perplexity) are tagged `hosted_api:<id>` (medium) because a prompt se
 | tgi | Text Generation Inference | `3000` (Docker examples map `8080:80`) | OpenAI Messages API | Usage statistics on by default, POSTed to `huggingface.co/api/telemetry/tgi`; `--usage-stats off` | `launcher/src/main.rs`, `router/src/usage_stats.rs` in the repository |
 | mlx-lm | `mlx_lm.server` | `127.0.0.1:8080` | OpenAI `/v1/chat/completions` | Hugging Face downloads | `mlx_lm/server.py` |
 | trtllm | `trtllm-serve` | `localhost:8000` | OpenAI-compatible | Hugging Face downloads | `tensorrt_llm/commands/serve.py` |
-| basalt | Basalt | `127.0.0.1:8080` | OpenAI, Anthropic | Has its own Security monitor serving `/api/netwatch/*` | Basalt repository |
+| basalt | Basalt / TaDaMoo | `127.0.0.1:7232` | OpenAI, Anthropic | Has its own Security monitor serving `/api/netwatch/*` | Basalt repository |
 | strata | Strata | `127.0.0.1:8080` | OpenAI, Anthropic | None known; no monitor | [Strata README](https://raw.githubusercontent.com/jesdga95/strata/main/README.md) |
-| generic | any OpenAI-compatible server | `127.0.0.1:8080` | OpenAI | unknown | |
+| generic | any OpenAI-compatible server | `127.0.0.1:7232` | OpenAI | unknown | |
 
 Libraries built on `huggingface_hub` (transformers, vLLM, TGI, mlx-lm and others) contact the Hub for files unless
 `HF_HUB_OFFLINE=1`; their telemetry is off with `HF_HUB_DISABLE_TELEMETRY=1` or `DO_NOT_TRACK=1`

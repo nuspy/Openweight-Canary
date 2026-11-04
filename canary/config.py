@@ -22,7 +22,7 @@ KINDS = ("openai", "anthropic")
 PROVIDER_DEFAULT = {"kind": "openai", "base_url": "", "api_key": "", "model": "", "extra_headers": {}}
 
 DEFAULTS = {
-    "target": {**PROVIDER_DEFAULT, "base_url": "http://127.0.0.1:8080"},
+    "target": {**PROVIDER_DEFAULT, "base_url": "http://127.0.0.1:7232"},
     "generators": [],
     "reviewer": None,
     "monitor": None,
@@ -413,10 +413,10 @@ def load_config(path: str | Path | None, overrides: dict | None = None) -> Confi
 
 def sample_config() -> dict:
     sample = copy.deepcopy(DEFAULTS)
-    sample["_comment"] = "Basalt exposes an OpenAI-compatible API on 8080; see README for every key."
+    sample["_comment"] = "TaDaMoo and Basalt expose an OpenAI-compatible API on 7232; see README for every key."
     sample["target"]["model"] = ""
     sample["harnesses"] = ["hermes", "cline", "aider"]
-    sample["monitor"] = {"base_url": "http://127.0.0.1:8080", "api_key": ""}
+    sample["monitor"] = {"base_url": "http://127.0.0.1:7232", "api_key": ""}
     sample["_reviewer_example"] = {
         "kind": "openai", "base_url": "https://api.example.com", "api_key": "env:REVIEWER_API_KEY",
         "model": "reviewer-model", "extra_headers": {},
