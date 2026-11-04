@@ -158,7 +158,7 @@ pre { background: var(--panel); border: 1px solid var(--line); border-radius: 8p
   <h2 class="standalone-only">Engine and model</h2>
   <div class="card grid2 standalone-only">
     <label class="field"><span>Engine (runtime)</span><select id="s-runtime"></select></label>
-    <label class="field"><span>Model name as the server knows it</span><input type="text" id="s-model"></label>
+    <div class="field"><span>Model, as the server at that address offers it</span><div class="row"><select id="s-model-pick" aria-label="Models offered by the server" style="flex:1 1 220px"></select><button type="button" id="s-model-load">Load the list</button></div><input type="text" id="s-model" placeholder="or type a model name" aria-label="Model name"></div>
     <label class="field"><span>Address of the server</span><input type="text" id="s-base"></label>
     <label class="field"><span>Vendor (empty: detected from the model name)</span><select id="s-vendor"></select></label>
     <label class="field"><span>Key of the server, if it needs one</span><input type="password" id="s-key" autocomplete="off"></label>
@@ -197,7 +197,7 @@ pre { background: var(--panel); border: 1px solid var(--line); border-radius: 8p
     <label class="check"><input type="checkbox" id="m-listener"><span>Canary web listener (sees whether the model reaches the planted addresses)</span></label>
     <label class="field"><span>Network monitor address (empty: built-in sampler)</span><input type="text" id="m-monitor"></label>
     <label class="field"><span>Reviewer model, address</span><input type="text" id="r-base"></label>
-    <label class="field"><span>Reviewer model, name</span><input type="text" id="r-model"></label>
+    <div class="field"><span>Reviewer model</span><div class="row"><select id="r-model-pick" aria-label="Models offered by the reviewer server" style="flex:1 1 200px"></select><button type="button" id="r-model-load">Load the list</button></div><input type="text" id="r-model" placeholder="or type a model name" aria-label="Reviewer model name"></div>
     <label class="field"><span>Reviewer key</span><input type="password" id="r-key" autocomplete="off"></label>
     <label class="field"><span>Alert from level (severity)</span><select id="a-min"><option value="high">high</option><option value="medium">medium</option><option value="low">low</option></select></label>
     <label class="field"><span>Command run for each alert</span><input type="text" id="a-cmd"></label>
@@ -414,8 +414,31 @@ async function loadSettings() {
   group($("trigger-list"), OPTIONS.triggers, nv.triggers || OPTIONS.triggers.map((t) => t.id), "trigger");
   val("p-state", c.state_dir); val("p-rate", c.sessions_per_hour); val("p-duration", c.duration); val("p-words", c.doc_words); val("p-research", c.research_share); val("p-hturns", c.harness_turns); val("p-tokens", c.max_tokens);
   val("m-listener", (c.canary_listener || {}).enabled); val("m-monitor", (c.monitor || {}).base_url || "");
-  const r = c.reviewer || {}; val("r-base", r.base_url); val("r-model", r.model); val("r-key", r.api_key); val("a-min", (c.alerts || {}).min_severity || "high"); val("a-cmd", (c.alerts || {}).command || "");
+  const r = c.reviewer || {}; val("r-base", r.base_url); val("r-model", r.model); val("r-key", r.api_key);
+  if ($("s-base").value) loadTargetModels(); if ($("r-base").value) loadReviewerModels(); val("a-min", (c.alerts || {}).min_severity || "high"); val("a-cmd", (c.alerts || {}).command || "");
 }
+/* the models a provider offers, in a menu; typing a name stays possible */
+function modelMenu(which, pickId, inputId, loadId, baseId, keyId) {
+  const pick = $(pickId), input = $(inputId);
+  const fill = (names) => {
+    pick.replaceChildren(h("option", { value: "" }, names.length ? "Choose a model…" : "No list loaded"), ...names.map((n) => h("option", { value: n, selected: n === input.value }, n)));
+    if (input.value && names.includes(input.value)) pick.value = input.value;
+  };
+  fill([]);
+  pick.addEventListener("change", () => { if (pick.value) input.value = pick.value; });
+  const load = async () => {
+    $(loadId).disabled = true;
+    try {
+      const r = await api("api/models", { which, base_url: $(baseId).value.trim(), api_key: $(keyId).value });
+      fill(r.models); toast(r.ok ? r.models.length + " models offered." : "No list: " + r.error);
+    } catch (e) { toast(e.message); } finally { $(loadId).disabled = false; }
+  };
+  $(loadId).addEventListener("click", load);
+  return load;
+}
+const loadTargetModels = modelMenu("target", "s-model-pick", "s-model", "s-model-load", "s-base", "s-key");
+const loadReviewerModels = modelMenu("reviewer", "r-model-pick", "r-model", "r-model-load", "r-base", "r-key");
+
 $("apply-runtime").addEventListener("click", async () => {
   try { await api("api/runtime", { runtime: val("s-runtime"), model: val("s-model"), vendor: val("s-vendor"), base_url: "" }); await loadSettings(); toast("Address and monitor set for this engine."); } catch (e) { toast(e.message); }
 });

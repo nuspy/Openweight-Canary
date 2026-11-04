@@ -270,3 +270,59 @@ def test_the_ai_pre_analysis_may_use_the_model_under_test_and_says_so(gui, monke
     monkeypatch.setattr(server, "Provider", Fake)
     code, body = post(base, "/api/analyse", {"ids": [1]})
     assert code == 200 and body["ok"] and body["reviewer_is_target"] is True
+
+
+class _ModelServer:
+    """A server that lists models the OpenAI way (and Ollama's way on another path)."""
+
+    def __init__(self, listing):
+        from http.server import BaseHTTPRequestHandler, HTTPServer
+        outer = self
+        outer.seen = []
+
+        class H(BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def do_GET(self):
+                outer.seen.append((self.path, self.headers.get("Authorization")))
+                if self.path in listing:
+                    body = json.dumps(listing[self.path]).encode()
+                    self.send_response(200)
+                else:
+                    body = b"{}"
+                    self.send_response(404)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+        self.httpd = HTTPServer(("127.0.0.1", 0), H)
+        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
+        self.url = f"http://127.0.0.1:{self.httpd.server_address[1]}"
+
+    def close(self):
+        self.httpd.shutdown()
+
+
+def test_the_models_a_provider_offers_are_listed_with_the_stored_key(gui):
+    base, _, _ = gui
+    srv = _ModelServer({"/v1/models": {"data": [{"id": "qwen3.8-flash-next"}, {"id": "Another-Model"}]}})
+    try:
+        assert post(base, "/api/config", {"target": {"base_url": srv.url, "model": "qwen3.8-flash-next", "api_key": "sk-listing-key"}})[0] == 200
+        code, body = post(base, "/api/models", {"which": "target", "base_url": srv.url, "api_key": "***"})
+        assert code == 200 and body["ok"] and body["models"] == ["Another-Model", "qwen3.8-flash-next"]
+        assert srv.seen[0] == ("/v1/models", "Bearer sk-listing-key")                                  # the stored key, not the mask
+    finally:
+        srv.close()
+
+
+def test_ollama_style_listings_and_unreachable_servers(gui):
+    base, _, _ = gui
+    srv = _ModelServer({"/api/tags": {"models": [{"name": "llama3:8b"}, {"name": "qwen3:8b"}]}})
+    try:
+        assert post(base, "/api/models", {"which": "target", "base_url": srv.url})[1]["models"] == ["llama3:8b", "qwen3:8b"]
+    finally:
+        srv.close()
+    code, body = post(base, "/api/models", {"which": "target", "base_url": "http://127.0.0.1:9"})
+    assert code == 200 and not body["ok"] and body["models"] == [] and body["error"]
+    code, body = post(base, "/api/models", {"which": "target", "base_url": "file:///etc/passwd"})
+    assert not body["ok"] and "http" in body["error"]

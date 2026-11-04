@@ -216,3 +216,36 @@ class Provider:
             self.sleep(delay)
         reply.latency = time.monotonic() - started
         return reply
+
+
+def list_models(spec: dict, timeout: float = 8.0) -> list[str]:
+    """The model names a server offers: the OpenAI-style `/v1/models`, or Ollama's `/api/tags`. Raises OSError with a plain message when it cannot be read."""
+    import urllib.error
+    import urllib.request
+    from urllib.parse import urlparse
+    base = str(spec.get("base_url") or "").rstrip("/")
+    if urlparse(base).scheme not in ("http", "https") or not urlparse(base).hostname:
+        raise OSError("the address starts with http:// or https://")
+    headers = Provider({**spec, "model": ""}, timeout=timeout)._headers()
+    root = base[:-3] if base.endswith("/v1") else base
+    seen: list[str] = []
+    last = "no answer"
+    for url in (f"{root}/v1/models", f"{root}/models", f"{root}/api/tags"):
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=timeout) as resp:
+                data = json.loads(resp.read(4 << 20).decode("utf-8", "replace"))
+        except urllib.error.HTTPError as exc:
+            last = f"{url}: HTTP {exc.code}"
+            continue
+        except (urllib.error.URLError, OSError, ValueError) as exc:
+            last = f"{url}: {getattr(exc, 'reason', exc)}"
+            continue
+        rows = data.get("data") if isinstance(data, dict) else None
+        rows = rows if isinstance(rows, list) else (data.get("models") if isinstance(data, dict) else None)
+        for row in rows or []:
+            name = row.get("id") or row.get("name") or row.get("model") if isinstance(row, dict) else row
+            if isinstance(name, str) and name and name not in seen:
+                seen.append(name)
+        if seen:
+            return sorted(seen, key=str.lower)
+    raise OSError(last)

@@ -25,7 +25,7 @@ from ..harnesses import load_profiles
 from ..levels import LEVELS, annotate
 from ..presets import build_config
 from ..reviewer import SYSTEM_PROMPT, parse_assessment
-from ..providers import Provider
+from ..providers import Provider, list_models
 from ..stats import load_state
 from ..util import read_json, read_jsonl, write_json
 from ..vendors import load_catalog
@@ -126,6 +126,22 @@ class App:
         if self.path.exists() and (self.raw().get("target") or {}).get("api_key"):
             keep["target"]["api_key"] = self.raw()["target"]["api_key"]
         return self.save_config(keep)
+
+    # -- the models a provider offers
+    def models(self, body: dict) -> dict:
+        """The model names the server at `base_url` offers. The key of the target or the reviewer, as stored, is used when the form shows ***."""
+        which = "reviewer" if body.get("which") == "reviewer" else "target"
+        raw = self.raw()
+        stored = raw.get(which) or {}
+        key = str(body.get("api_key") or "")
+        spec = {"kind": body.get("kind") or stored.get("kind") or "openai", "base_url": str(body.get("base_url") or stored.get("base_url") or ""),
+                "api_key": stored.get("api_key", "") if key in ("", MASK) else key, "extra_headers": stored.get("extra_headers") or {}}
+        if str(spec["api_key"]).startswith("env:"):
+            spec["api_key"] = os.environ.get(spec["api_key"][4:], "")
+        try:
+            return {"ok": True, "models": list_models(spec)}
+        except OSError as exc:
+            return {"ok": False, "models": [], "error": str(exc)[:300]}
 
     # -- the editable catalogs
     def catalog_file(self) -> Path:
@@ -392,7 +408,7 @@ def _count_alerts(sd: Path) -> int:
 POSTS = {"/api/config": lambda app, b: app.save_config(b),
          "/api/runtime": lambda app, b: app.apply_runtime(b["runtime"], b.get("model", ""), b.get("vendor"), b.get("base_url")),
          "/api/start": lambda app, b: app.start(), "/api/stop": lambda app, b: app.stop(), "/api/analyse": lambda app, b: app.analyse(b),
-         "/api/chat": lambda app, b: app.chat(b),
+         "/api/chat": lambda app, b: app.chat(b), "/api/models": lambda app, b: app.models(b),
          "/api/catalog/save": lambda app, b: app.catalog_change("save", b), "/api/catalog/delete": lambda app, b: app.catalog_change("delete", b),
          "/api/catalog/reset": lambda app, b: app.catalog_change("reset", b)}
 
