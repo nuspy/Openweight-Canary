@@ -71,7 +71,7 @@ class Reviewer:
         since = self.last_session_reviewed()
         dig = digest(state, since_session=since)
         prompt = TASK_PROMPT.format(digest=json.dumps(dig, indent=1, ensure_ascii=False))
-        reply = self.provider.chat([{"role": "user", "content": prompt}], system=SYSTEM_PROMPT, max_tokens=1500)
+        reply = self.provider.chat([{"role": "user", "content": prompt}], system=SYSTEM_PROMPT, max_tokens=0)
         number = self._next_number()
         record = {
             "n": number, "time": iso(), "ts": time.time(), "run": run_id, "label": label,

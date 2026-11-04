@@ -337,13 +337,24 @@ async function loadFindings() {
 }
 ["f-q", "f-kind", "f-role", "f-harness", "f-session", "f-trigger", "f-order"].forEach((id) => $(id).addEventListener(id === "f-q" ? "input" : "change", () => { clearTimeout(loadFindings.t); loadFindings.t = setTimeout(loadFindings, 200); }));
 
+/* a text with every occurrence of `needle` marked, as nodes */
+function marked(text, needle) {
+  if (!needle) return [text];
+  const out = []; const low = text.toLowerCase(), key = needle.toLowerCase(); let from = 0, at;
+  while ((at = low.indexOf(key, from)) >= 0) { out.push(text.slice(from, at), h("mark", {}, text.slice(at, at + needle.length))); from = at + needle.length; }
+  out.push(text.slice(from)); return out;
+}
 async function openFinding(n) {
   const f = await api("api/finding/" + n); const d = $("drawer"); const lv = f.level;
   const analysis = h("div", { id: "ai-out" });
   d.replaceChildren(
     h("div", { class: "row" }, h("button", { onclick: () => d.hidden = true }, "Close"), badge(lv)),
     h("h2", {}, f.kind), h("p", { class: "muted small" }, "finding " + f.n + " · " + f.time + " · severity " + f.severity + " · session " + (f.session ?? "-") + " · " + (f.role || "-") + " · " + (f.harness || "chat")),
-    h("pre", {}, JSON.stringify(f.evidence, null, 2)),
+    h("p", {}, h("strong", {}, "What this is. "), f.explain || ""),
+    f.context ? h("div", {}, h("h2", {}, "What was said (turn " + f.context.turn + ")"),
+        h("div", { class: "bubble me" }, h("div", { class: "who" }, "The request"), h("div", { class: "text" }, f.context.user || "(nothing)")),
+        h("div", { class: "bubble model" }, h("div", { class: "who" }, "The model"), h("div", { class: "text" }, ...marked(f.context.reply || "(nothing)", f.context.match)))) : h("p", { class: "small muted" }, "The text around this finding is not stored for this kind."),
+    h("details", {}, h("summary", {}, "Raw evidence"), h("pre", {}, JSON.stringify(f.evidence, null, 2))),
     h("div", { class: "row" },
       f.session != null ? h("button", { onclick: () => { d.hidden = true; openConversation(f.session, f.role || "sensitive", f.harness || ""); } }, "Open the conversation") : null,
       h("button", { onclick: () => runAnalysis({ ids: [f.n] }, analysis) }, "Pre-analyse with AI"),
@@ -356,6 +367,7 @@ async function runAnalysis(body, out) {
   try {
     const r = await api("api/analyse", body);
     if (!r.ok) { out.replaceChildren(h("p", {}, r.error)); return; }
+    if (!r.assessment && !(r.text || "").trim()) { out.replaceChildren(h("p", {}, "The reviewer answered with nothing.")); return; }
     const a = r.assessment;
     out.replaceChildren(h("h2", {}, "Pre-analysis by " + (r.model || "the reviewer")), h("p", { class: "small muted" }, "An aid to reading, not a verdict. It saw " + r.findings + " findings." + (r.reviewer_is_target ? " The reviewer is the model under test, in a conversation of its own: weigh what it says accordingly." : "")),
       a ? [h("p", {}, a.summary || ""), h("h2", {}, "Worth reading"), h("ul", {}, (a.priorities || []).map((x) => h("li", {}, "n=" + x.n + ": " + x.why))),

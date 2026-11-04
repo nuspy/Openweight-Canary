@@ -348,3 +348,41 @@ def test_the_summary_says_if_the_monitor_answers_and_the_reviews_are_listed(gui)
     rows = json.loads(get(base, "/api/reviews")[1])
     assert rows[0]["summary"] == "Nothing stands out." and rows[0]["is_target"] and rows[0]["priorities"][0]["n"] == 1
     assert json.loads(get(base, "/api/summary")[1])["reviews"] == 1
+
+
+def test_a_finding_comes_with_what_it_means_and_the_text_around_it(gui):
+    base, _, tmp = gui
+    log = FindingsLog(tmp / "state" / "findings.jsonl", "run-2")
+    log.append("info", "canary_echo", {"canary": "c", "matched": "ZZ95CANA6107", "turn": 2}, 1, "sensitive")
+    write_json(tmp / "state" / "conversations" / "s00001_sensitive.json",
+               {"turns": [{"user": "hello", "reply": {"text": "hi"}}, {"user": "draft the note", "reply": {"text": "Payment reference ZZ95CANA6107. Attachments follow."}}]})
+    n = max(r["n"] for r in json.loads(get(base, "/api/findings?kind=canary_echo")[1])["items"])
+    f = json.loads(get(base, f"/api/finding/{n}")[1])
+    assert "given to it earlier" in f["explain"]
+    assert f["context"]["user"] == "draft the note" and "ZZ95CANA6107" in f["context"]["reply"] and f["context"]["match"] == "ZZ95CANA6107"
+
+
+def test_the_pre_analysis_sees_the_text_and_an_empty_answer_is_an_error_not_a_blank(gui, monkeypatch):
+    import canary.gui.server as server
+    base, _, tmp = gui
+    same = {"kind": "openai", "base_url": "http://127.0.0.1:9", "model": "r", "api_key": "", "extra_headers": {}}
+    post(base, "/api/config", {"reviewer": same})
+    seen = {}
+
+    class Fake:
+        answer = ""
+
+        def __init__(self, *a, **k):
+            pass
+
+        def chat(self, messages, system=None, max_tokens=1024, **k):
+            seen["prompt"], seen["max_tokens"] = messages[0]["content"], max_tokens
+            return _Reply(Fake.answer)
+    monkeypatch.setattr(server, "Provider", Fake)
+    code, body = post(base, "/api/analyse", {"ids": [1]})
+    assert code == 200 and not body["ok"] and "nothing" in body["error"] and seen["max_tokens"] == 0
+    assert "what_this_kind_means" in seen["prompt"]
+    Fake.answer = '{"summary": "Harmless.", "priorities": [], "probably_legitimate": [{"n": 1, "why": "it was asked"}], "next_checks": []}'
+    code, body = post(base, "/api/analyse", {"ids": [1]})
+    assert body["ok"] and body["assessment"]["summary"] == "Harmless."
+    assert post(base, "/api/analyse", {"ids": [999]})[1]["ok"] is False
