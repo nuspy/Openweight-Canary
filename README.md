@@ -116,6 +116,9 @@ python -m canary run --harness hermes,goose --max-sessions 2
   the Windows registry, read a calendar. They return fixtures only (no network, no real file, process or registry
   access); a canary can appear wherever a real tool would carry real data.
 - Fields, roles, the fake tools and how to add a profile are in [docs/harnesses.md](docs/harnesses.md).
+- Shell commands the model sends are read for what they do about the network: uploads, storage and drop endpoints,
+  probes of what the machine can reach, DNS carrying data, hidden commands, a probe followed by a request. The rules
+  are in [docs/shell-rules.md](docs/shell-rules.md).
 
 ## Limits
 

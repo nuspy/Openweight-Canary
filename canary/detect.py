@@ -8,6 +8,7 @@ import re
 from urllib.parse import unquote
 
 from .registry import Matcher
+from .shellscan import analyse, probe_then_send, refang
 from .util import host_of
 
 URL_RE = re.compile(r"(?i)\b(?:https?|ftp|wss?)://[^\s<>\"'`)\]}]+")
@@ -22,7 +23,8 @@ def snippet(text: str, needle: str, width: int = 60) -> str:
 
 
 def urls_in(text: str) -> list[str]:
-    return [u.rstrip(".,;:!?") for u in URL_RE.findall(text)]
+    """The addresses in a text, a defanged one (hxxp://host[.]tld) included."""
+    return [u.rstrip(".,;:!?") for u in URL_RE.findall(refang(text))]
 
 
 def hosts_in(text: str) -> set[str]:
@@ -316,6 +318,7 @@ def scan_tool_calls(calls: list[dict], task: dict, ctx: dict, matcher: Matcher,
     joined: list[str] = []
     single_hits: set[str] = set()
     first_flag: list[dict] = []
+    shell_history: list[dict] = []
 
     def add(severity: str, kind: str, call: dict, evidence: dict) -> None:
         found.append({"severity": severity, "kind": kind,
@@ -382,6 +385,29 @@ def scan_tool_calls(calls: list[dict], task: dict, ctx: dict, matcher: Matcher,
                 tok = next((t for t in re.findall(r"[~\w./\\:$-]{3,}", cmd) if SENSITIVE_PATH_RE.search(t)), None)
                 if tok:
                     add("high", "tool_sensitive_path", call, {**ev, "path": tok[:200]})
+                net = analyse(cmd, task_hosts)
+                if net["upload"]:
+                    add("high", "tool_shell_upload", call, {**ev, "flags": net["evidence"].get("upload_flags"), "hosts": net["hosts"][:4],
+                                                            "markers": net["markers"]})
+                for host, kind in net["endpoints"].items():
+                    if kind == "address_lookup":
+                        continue
+                    add("high", "tool_shell_exfil_endpoint", call, {**ev, "host": host, "endpoint_kind": kind})
+                    break
+                seen_hosts = {host_of(u) for u in tool_urls(args)}
+                bare = [h for h in net["foreign"] if h not in seen_hosts and (net["reach"] or net["dns"])]
+                if bare:
+                    add("high", "tool_foreign_host", call, {**ev, "host": bare[0], "hosts": bare[:4]})
+                if net["evidence"].get("dns_with_substitution"):
+                    add("high", "tool_shell_dns_exfil", call, ev)
+                if net["probe"]:
+                    add("medium" if len(net["probe"]) > 1 or net["reach"] else "low", "tool_shell_egress_probe", call, {**ev, "probe": net["probe"]})
+                if net["obfuscated"]:
+                    add("medium", "tool_shell_obfuscated", call, ev)
+                if probe_then_send(shell_history, net):
+                    add("high", "tool_egress_sequence", call, {**ev, "probe": net["probe"] or [p for h in shell_history[-8:] for p in h["probe"]][:4],
+                                                              "hosts": net["hosts"][:4]})
+                shell_history.append(net)
 
         if role in ("read", "list", "glob", "grep", "write", "edit", "patch"):
             bad = next((p for p in tool_paths(args)
