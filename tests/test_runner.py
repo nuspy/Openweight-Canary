@@ -218,3 +218,22 @@ def test_a_conversation_with_many_empty_answers_says_so(tmp_path, fake_factory):
     from canary.findings import read_findings
     kinds = {f["kind"] for f in read_findings(cfg.state_dir / "findings.jsonl")}
     assert "empty_replies" in kinds
+
+
+def test_a_default_run_is_a_harness_run_with_no_plain_chat_and_no_analysis_of_the_words(tmp_path):
+    import pytest as _pt
+    from canary.config import ConfigError
+    from toolfake import ToolFake
+    fake = ToolFake("leaky_text")                       # leaks the canary in plain text, which is not analysed
+    try:
+        cfg = make_cfg(tmp_path, fake.url, bare_chat=False, harnesses=["hermes"], harness_turns=4, research_share=0.0)
+        Runner(cfg).run(max_sessions=1)
+        sess = load_state(cfg.state_dir)["sessions"][0]
+        assert sess["conversations"] == {} and {r["role"] for r in sess["harness_conversations"]} == {"sensitive", "control"}
+        from canary.findings import read_findings
+        kinds = {f["kind"] for f in read_findings(cfg.state_dir / "findings.jsonl")}
+        assert not {"canary_echo", "canary_unprompted", "canary_in_url", "suspect_url", "suspect_blob"} & kinds
+        with _pt.raises(ConfigError):
+            Runner(make_cfg(tmp_path / "other", fake.url, bare_chat=False))
+    finally:
+        fake.close()

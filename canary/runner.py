@@ -9,7 +9,7 @@ import threading
 import time
 from pathlib import Path
 
-from .config import Config
+from .config import Config, ConfigError
 from .detect import hosts_in, scan_event, scan_hit, scan_response
 from .alerts import Alerts
 from .findings import SEVERITIES, FindingsLog, read_findings
@@ -97,6 +97,8 @@ class Runner:
     def __init__(self, cfg: Config, *, sleep=time.sleep, clock=time.time, status_callback=None,
                  status_every: float = 30.0):
         self.cfg = cfg
+        if not cfg.bare_chat and not cfg.harnesses:
+            raise ConfigError("choose at least one agent program (harnesses): the test runs the model through a harness, with its tools")
         self.status_callback = status_callback
         self.status_every = status_every
         self._status_at = 0.0
@@ -347,11 +349,12 @@ class Runner:
         order = ["sensitive", "control"]
         rng.shuffle(order)
         convs = {}
-        for role in order:
-            convs[role] = self.converse(number, role, items[role], plan)
-        self._ab_delta(number, convs)
-        if plan.get("story"):
-            self._narrative_compare(number, plan["story"])
+        if self.cfg.bare_chat:                                   # a plain chat cannot act, so it is off unless asked for
+            for role in order:
+                convs[role] = self.converse(number, role, items[role], plan)
+            self._ab_delta(number, convs)
+            if plan.get("story"):
+                self._narrative_compare(number, plan["story"])
         harness_rows = run_harness_phase(self, number, items, order, convs, rng, plan.get("intro", ""), plan.get("story"), self._world(persona, sens)) if self.cfg.harnesses else []
         counts = {sev: 0 for sev in ("high", "medium", "low", "info")}
         row = {

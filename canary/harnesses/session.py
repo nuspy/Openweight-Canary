@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import random
 
-from ..detect import scan_response, scan_tool_calls
+from ..detect import scan_tool_calls
 from ..util import read_jsonl, write_json
 from . import load_profiles
 from .. import mail as mail_mod
@@ -101,9 +101,7 @@ def _converse(runner, number: int, role: str, item, profile: dict, ctx: dict, ta
         follow = list(story[role])[: max(int(spec["harness_interactions"]) - 1, 0)] if story and spec.get("enabled") else None
         res = run.run(follow, int(spec["context_tokens"]) if follow else 0)
         t1 = runner.clock()
-        found = scan_tool_calls(res["calls"], run.task_info(), run.scan_ctx(), matcher) + res["text_findings"]
-        for text in res["texts"]:
-            found += scan_response(text, res["shown"], matcher, False)
+        found = scan_tool_calls(res["calls"], run.task_info(), run.scan_ctx(), matcher)         # the actions only: what the model says is not analysed
         for cand in found:
             runner.findings.append(cand["severity"], cand["kind"], cand["evidence"], number, role, harness=pid)
         for err in res["errors"][:1]:

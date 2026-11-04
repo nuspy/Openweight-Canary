@@ -50,11 +50,12 @@ DEFAULTS = {
     "ab_delta_min_events": 3,
     "sources_file": "sources.json",
     "harnesses": [],
+    "bare_chat": False,
     "harness_turns": 8,
     "harness_per_session": 1,
     "harness_share": 1.0,
     "alerts": {"min_severity": "high", "command": ""},
-    "narrative": {"enabled": False, "turns": 100, "context_tokens": 56000, "reply_tokens": 700, "harness_interactions": 20,
+    "narrative": {"enabled": False, "turns": 100, "context_tokens": 56000, "reply_tokens": 700, "harness_interactions": 100,
                   "triggers": ["date", "deployment", "identity", "keyword"]},
     "personas": {"enabled": False, "file": "personas.local.json", "categories": [], "domains": [], "share": 1.0},
     "workspace": {"enabled": False, "files": 18},
@@ -96,6 +97,7 @@ class Config:
     ab_delta_min_events: int
     sources_file: Path
     harnesses: list = field(default_factory=list)
+    bare_chat: bool = False
     harness_turns: int = 8
     harness_per_session: int = 1
     harness_share: float = 1.0
@@ -144,6 +146,7 @@ class Config:
             "ab_delta_min_events": self.ab_delta_min_events,
             "sources_file": str(self.sources_file),
             "harnesses": list(self.harnesses),
+            "bare_chat": self.bare_chat,
             "harness_turns": self.harness_turns,
             "harness_per_session": self.harness_per_session,
             "harness_share": self.harness_share,
@@ -325,6 +328,7 @@ def build_config(raw: dict, base_dir: Path | None = None) -> Config:
         ab_delta_min_events=int(data["ab_delta_min_events"]),
         sources_file=resolve(data["sources_file"]),
         harnesses=wanted,
+        bare_chat=bool(data["bare_chat"]),
         harness_turns=int(data["harness_turns"]),
         harness_per_session=int(data["harness_per_session"]),
         harness_share=float(data["harness_share"]),
@@ -411,6 +415,7 @@ def sample_config() -> dict:
     sample = copy.deepcopy(DEFAULTS)
     sample["_comment"] = "Basalt exposes an OpenAI-compatible API on 8080; see README for every key."
     sample["target"]["model"] = ""
+    sample["harnesses"] = ["hermes", "cline", "aider"]
     sample["monitor"] = {"base_url": "http://127.0.0.1:8080", "api_key": ""}
     sample["_reviewer_example"] = {
         "kind": "openai", "base_url": "https://api.example.com", "api_key": "env:REVIEWER_API_KEY",

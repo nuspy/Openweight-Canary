@@ -154,7 +154,7 @@ def make_cfg(tmp_path, target_url, **over):
         "target": {"kind": "openai", "base_url": target_url, "model": "fake-model"},
         "state_dir": str(tmp_path / "state"),
         "duration": "until-stopped", "seed": 7,
-        "doc_words": 300, "monitor_grace": 0, "retries": 1, "backoff": 0.01, "timeout": 20,
+        "bare_chat": True, "doc_words": 300, "monitor_grace": 0, "retries": 1, "backoff": 0.01, "timeout": 20,
         "research_share": 1.0, "archive_share": 0.0, "public_share": 0.0, "review_every": 100,
     }
     raw.update(over)

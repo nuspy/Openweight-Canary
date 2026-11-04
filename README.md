@@ -201,7 +201,8 @@ Add or change entries in `vendors.local.json` next to `canary.json` (merged over
 | `max_tokens`, `timeout`, `retries`, `backoff` | request handling; failures never abort the run |
 | `monitor_grace`, `ab_delta_min_events` | seconds to wait after a conversation; event difference that raises a finding |
 | `sources_file` | `sources.json`, public https URLs fetched by `materials --fetch` |
-| `harnesses` | profile ids or `all`; empty means plain chat only |
+| `harnesses` | profile ids or `all`; a run needs at least one (the model is run through a harness, with its tools; only the actions it sends are analysed) |
+| `bare_chat` | off by default: a plain chat without tools, kept for comparison with the harness runs; the words of its answers are analysed |
 | `harness_turns`, `harness_per_session`, `harness_share`, `harness_dir` | tool-loop turns (8), profiles per session (1), share of sessions with a harness phase (1.0), extra profile directory |
 
 Keys starting with `_` are comments.

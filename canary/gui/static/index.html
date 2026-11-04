@@ -85,6 +85,11 @@ pre { background: var(--panel); border: 1px solid var(--line); border-radius: 8p
 .bubble .who { font-size: .78rem; color: var(--muted); margin-bottom: 2px; }
 .text.fold { max-height: 16em; overflow: hidden; -webkit-mask-image: linear-gradient(#000 70%, transparent); mask-image: linear-gradient(#000 70%, transparent); }
 .more { margin-top: 6px; min-height: 44px; }
+.bubble.action { align-self: flex-start; border-left: 4px solid var(--l3b); background: var(--l3); }
+.bubble.action code.act { display: block; white-space: pre-wrap; word-break: break-word; font-size: .88rem; }
+.bubble.said { align-self: flex-start; opacity: .7; font-size: .9rem; }
+.bubble.result { align-self: flex-start; width: min(760px, 92%); font-size: .85rem; }
+.bubble.result pre { white-space: pre-wrap; word-break: break-word; max-height: 24em; overflow: auto; margin: 6px 0 0; }
 td.ev .brief { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 td.ev b { font-family: system-ui, sans-serif; font-weight: 600; }
 mark { background: var(--l2); color: inherit; padding: 0 2px; border-radius: 3px; }
@@ -448,13 +453,37 @@ async function loadSessions() {
           s.domain ? h("span", { class: "badge" }, s.domain) : null),
         nr ? h("p", { class: "small" }, nr.done + " of " + nr.planned + " turns" + (nr.stopped ? " — stopped: " + nr.stopped : "") + " · triggers at turns " + nr.triggers.map((t) => t.turn + " (" + t.family + ")").join(", ")) : null,
         h("div", { class: "row" },
-          h("button", { onclick: () => openConversation(s.session, "sensitive", "") }, "Chat, sensitive"), h("button", { onclick: () => openConversation(s.session, "control", "") }, "Chat, control"),
+          ...(s.chat ? [h("button", { onclick: () => openConversation(s.session, "sensitive", "") }, "Chat, sensitive"), h("button", { onclick: () => openConversation(s.session, "control", "") }, "Chat, control")] : []),
           ...s.harness.map((x) => h("button", { onclick: () => openConversation(s.session, x.role, x.profile) }, x.profile + ", " + x.role + " (" + x.calls + " calls" + (x.interactions > 1 ? ", " + x.interactions + " turns" : "") + ")"))),
         h("p", { class: "small muted" }, "Findings: " + s.worst.counts.map((n, i) => NAMES[i] + " " + n).join(" · ")));
     }));
 }
 const flat = (list) => list.flat(Infinity).filter(Boolean);
 const FOLD = 1800;
+/* a harness conversation: the request, then every action the model sent to the harness, with what came back; the model's own words are shown dimmed, not analysed */
+function actionsOf(m) {
+  return (m.tool_calls || []).map((t) => {
+    const f = t.function || t; let args = f.arguments;
+    try { if (typeof args === "string") args = JSON.parse(args); } catch (e) { /* shown as text */ }
+    const text = typeof args === "string" ? args : (args && (args.command || args.commands || args.path || args.file_path || args.url)) ? [].concat(args.commands || args.command || args.path || args.file_path || args.url).join("\n") : JSON.stringify(args);
+    return { name: f.name || "tool", text };
+  });
+}
+function transcript(c, who) {
+  const out = []; let step = 0;
+  for (const m of c.messages || []) {
+    if (m.role === "system") continue;
+    if (m.role === "user") { out.push(h("div", { class: "bubble me" }, h("div", { class: "who" }, who), h("div", { class: "text" }, String(m.content || "").slice(0, 6000)))); continue; }
+    if (m.role === "assistant") {
+      const acts = actionsOf(m);
+      for (const a of acts) { step += 1; out.push(h("div", { class: "bubble action" }, h("div", { class: "who" }, "Action " + step + " · " + a.name), h("code", { class: "act" }, a.text))); }
+      if ((m.content || "").trim()) out.push(h("div", { class: "bubble said" }, h("div", { class: "who" }, "Model's words (not analysed)"), h("div", { class: "text" }, String(m.content))));
+      continue;
+    }
+    if (m.role === "tool") { const t = String(m.content || ""); out.push(h("details", { class: "bubble result" }, h("summary", {}, "Result · " + t.length + " characters"), h("pre", {}, t.slice(0, 8000)))); }
+  }
+  return out;
+}
 function bubble(who, text, cls, extras, needles) {
   const body = h("div", { class: "text" }, ...(needles && needles.length ? markedMany(text || "(empty)", needles) : [text || "(empty)"]));
   const parts = [h("div", { class: "who" }, who), body];
@@ -476,7 +505,7 @@ async function openConversation(session, role, profile) {
     ...turns.map((t) => { const lv = lvByTurn[t.n] ?? 0; const i = h("i", { class: "lv" + lv, title: "turn " + t.n + (trig[t.n] ? " · trigger " + trig[t.n].family : "") + (bait[t.n] ? " · bait " + bait[t.n].kind : "") + " · " + NAMES[lv] }); if (trig[t.n]) i.textContent = "⚑"; i.style.fontSize = "10px"; return i; }));
   const who = c.persona ? (c.persona.name || ("the " + c.persona.role + " of " + c.persona.org)) : "Person";
   const blank = c.turns.filter((t) => !(t.reply || "").trim()).length;
-  const chat = h("div", { class: "chat", id: "chat" }, ...turns.map((t) => {
+  const chat = profile ? h("div", { class: "chat", id: "chat" }, ...transcript(c, who)) : h("div", { class: "chat", id: "chat" }, ...turns.map((t) => {
     const lv = lvByTurn[t.n] ?? 0; const fs = c.findings.filter((f) => f.evidence.turn === t.n);
     const marks = [trig[t.n] ? h("div", { class: "mark" }, "⚑ trigger (" + trig[t.n].family + ")") : null, bait[t.n] ? h("div", { class: "mark" }, "✎ bait said: " + bait[t.n].kind) : null, t.manual ? h("div", { class: "mark" }, "written by you") : null];
     return h("div", { class: "pair", id: "turn-" + t.n },
@@ -506,7 +535,7 @@ async function loadSettings() {
   $("s-runtime").replaceChildren(...OPTIONS.runtimes.map((r) => h("option", { value: r.id }, r.name + " (" + r.base_url + ")"))); val("s-runtime", c.runtime || "generic");
   $("s-vendor").replaceChildren(h("option", { value: "" }, "detect from the model name"), ...OPTIONS.vendors.map((v) => h("option", { value: v.id }, v.name))); val("s-vendor", c.vendor || "");
   val("s-model", c.target.model); val("s-base", c.target.base_url); val("s-key", c.target.api_key);
-  const goals = $("goals"); const on = { chat: true, harness: (c.harnesses || []).length > 0, narrative: !!(c.narrative || {}).enabled, personas: !!(c.personas || {}).enabled, workspace: !!(c.workspace || {}).enabled };
+  const goals = $("goals"); const on = { chat: !!c.bare_chat, harness: (c.harnesses || []).length > 0, narrative: !!(c.narrative || {}).enabled, personas: !!(c.personas || {}).enabled, workspace: !!(c.workspace || {}).enabled };
   group(goals, OPTIONS.goals, Object.keys(on).filter((k) => on[k]), "goal");
   group($("harness-list"), OPTIONS.harnesses.map((p) => ({ id: p.id, name: p.name, status: p.status })), c.harnesses || [], "harness");
   group($("persona-list"), OPTIONS.persona_categories, (c.personas || {}).categories?.length ? c.personas.categories : OPTIONS.persona_categories.map((x) => x.id), "persona");
@@ -547,7 +576,7 @@ $("save").addEventListener("click", async () => {
   const goals = picks($("goals")); const harnesses = goals.includes("harness") ? picks($("harness-list")) : [];
   const patch = {
     target: { base_url: val("s-base"), model: val("s-model"), api_key: val("s-key") }, vendor: val("s-vendor") || null,
-    harnesses, personas: { enabled: goals.includes("personas"), categories: picks($("persona-list")), domains: picks($("context-list")) },
+    harnesses, bare_chat: goals.includes("chat"), personas: { enabled: goals.includes("personas"), categories: picks($("persona-list")), domains: picks($("context-list")) },
     workspace: { enabled: goals.includes("workspace"), files: +val("w-files") },
     narrative: { enabled: goals.includes("narrative"), turns: +val("n-turns"), context_tokens: +val("n-ctx"), reply_tokens: +val("n-reply"), harness_interactions: +val("n-harness"), triggers: picks($("trigger-list")) },
     state_dir: val("p-state"), review_every: +val("p-review"), duration: val("p-duration"), doc_words: +val("p-words"), research_share: +val("p-research"), harness_turns: +val("p-hturns"), max_tokens: +val("p-tokens"),

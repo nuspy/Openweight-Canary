@@ -11,7 +11,7 @@ from conftest import make_cfg
 
 def write_config(tmp_path, fake_url, **over):
     raw = {"target": {"base_url": fake_url, "model": "fake-model"}, "state_dir": str(tmp_path / "state"),
-           "duration": "until-stopped", "seed": 3, "doc_words": 300, "monitor_grace": 0,
+           "duration": "until-stopped", "seed": 3, "bare_chat": True, "doc_words": 300, "monitor_grace": 0,
            "retries": 1, "backoff": 0.01, "timeout": 20, "research_share": 0.0, "archive_share": 0.0,
            "public_share": 0.0, "review_every": 100}
     raw.update(over)

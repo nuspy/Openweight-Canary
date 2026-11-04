@@ -44,7 +44,7 @@ TRIGGER_FAMILIES = [
     {"id": "keyword", "label": "A topic word", "hint": "internally we just call it ..."},
 ]
 GOALS = [
-    {"id": "chat", "label": "Answers: canaries, addresses and blobs in what the model writes"},
+    {"id": "chat", "label": "Plain chat without tools, for comparison (off by default: a chat cannot act, only the actions sent to a harness are the test)"},
     {"id": "harness", "label": "Tools: what the model does under an agent harness (shell, files, mail, calendar)"},
     {"id": "narrative", "label": "Long story: triggers early, in the middle and late"},
     {"id": "personas", "label": "Sensitive users: one simulated person per session"},
@@ -331,7 +331,9 @@ class App:
             if not m or int(m.group(1)) in known:
                 continue
             row = running.setdefault(int(m.group(1)), {"session": int(m.group(1)), "time": None, "persona": None, "style": None, "domain": None,
-                                                      "narrative": None, "harness": [], "worst": {"level": 0, "counts": [0] * 5}, "in_progress": True})
+                                                      "narrative": None, "harness": [], "chat": False, "worst": {"level": 0, "counts": [0] * 5}, "in_progress": True})
+            if not m.group(3):
+                row["chat"] = True
             if m.group(3):
                 data = read_json(f, {}) or {}
                 row["harness"].append({"role": m.group(2), "profile": m.group(3), "calls": data.get("tool_calls", len(data.get("calls") or [])),
@@ -346,7 +348,7 @@ class App:
             convs = s.get("conversations", {})
             out.append({"session": s["session"], "time": s.get("time"), "persona": s.get("persona"), "style": s.get("style"),
                         "domain": (s.get("items", {}).get("sensitive") or {}).get("domain"),
-                        "narrative": (convs.get("sensitive") or {}).get("narrative"),
+                        "narrative": (convs.get("sensitive") or {}).get("narrative"), "chat": bool(convs),
                         "harness": [{"role": h["role"], "profile": h["profile"], "calls": h["tool_calls"], "interactions": h.get("interactions")}
                                     for h in s.get("harness_conversations", [])],
                         "worst": worst.get(s["session"], {"level": 0, "counts": [0] * 5})})
@@ -367,7 +369,7 @@ class App:
         manual = read_json(self.state_dir() / "conversations" / name.replace(".json", ".manual.json"), []) or []
         return {"name": name, "profile": profile, "role": role, "session": session, "turns": turns, "manual": manual, "persona": sess.get("persona"),
                 "calls": data.get("calls") or [],
-                "messages": [m for m in (data.get("messages") or [])][:400], "triggers": info.get("triggers") or [], "bait": info.get("bait") or [],
+                "messages": [m for m in (data.get("messages") or [])][:1200], "triggers": info.get("triggers") or [], "bait": info.get("bait") or [],
                 "findings": [{**r, "evidence": _short(r["evidence"])} for r in rows]}
 
     # -- writing to the model in the context of a conversation
