@@ -177,9 +177,9 @@ mark { background: var(--l2); color: inherit; padding: 0 2px; border-radius: 3px
   <p class="muted small">The settings are saved in the config file the page was started with. A key you type is stored there; a key already stored is shown as ***.</p>
   <h2 class="standalone-only">Engine and model</h2>
   <div class="card grid2 standalone-only">
-    <label class="field"><span>Engine (runtime)</span><select id="s-runtime"></select></label>
+    <label class="field"><span>Program that serves the model (engine)</span><select id="s-runtime"></select></label>
     <div class="field"><span>Model, as the server at that address offers it</span><div class="row"><select id="s-model-pick" aria-label="Models offered by the server" style="flex:1 1 220px"></select><button type="button" id="s-model-load">Load the list</button></div><input type="text" id="s-model" placeholder="or type a model name" aria-label="Model name"></div>
-    <label class="field"><span>Address of the server</span><input type="text" id="s-base"></label>
+    <label class="field"><span>Address where that program listens (you can type any)</span><input type="text" id="s-base"></label>
     <label class="field"><span>Vendor (empty: detected from the model name)</span><select id="s-vendor"></select></label>
     <label class="field"><span>Key of the server, if it needs one</span><input type="password" id="s-key" autocomplete="off"></label>
     <div class="field"><span>&nbsp;</span><button id="apply-runtime">Use this engine's defaults for the address and the monitor</button></div>
@@ -532,7 +532,7 @@ const group = (box, items, selected, name) => box.replaceChildren(...items.map((
 const picks = (box) => [...box.querySelectorAll("input:checked")].map((i) => i.value);
 async function loadSettings() {
   [OPTIONS, CONFIG] = await Promise.all([api("api/options"), api("api/config")]); const c = CONFIG;
-  $("s-runtime").replaceChildren(...OPTIONS.runtimes.map((r) => h("option", { value: r.id }, r.name + " (" + r.base_url + ")"))); val("s-runtime", c.runtime || "generic");
+  $("s-runtime").replaceChildren(...OPTIONS.runtimes.map((r) => h("option", { value: r.id }, r.name))); val("s-runtime", c.runtime || "generic");
   $("s-vendor").replaceChildren(h("option", { value: "" }, "detect from the model name"), ...OPTIONS.vendors.map((v) => h("option", { value: v.id }, v.name))); val("s-vendor", c.vendor || "");
   val("s-model", c.target.model); val("s-base", c.target.base_url); val("s-key", c.target.api_key);
   const goals = $("goals"); const on = { chat: !!c.bare_chat, harness: (c.harnesses || []).length > 0, narrative: !!(c.narrative || {}).enabled, personas: !!(c.personas || {}).enabled, workspace: !!(c.workspace || {}).enabled };
