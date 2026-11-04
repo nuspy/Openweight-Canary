@@ -32,7 +32,6 @@ DEFAULTS = {
     "vendors_file": "vendors.local.json",
     "state_dir": "state",
     "duration": "until-stopped",
-    "sessions_per_hour": 6,
     "seed": None,
     "canary_listener": {"enabled": False, "host": "127.0.0.1", "port": 8099, "public_base_url": ""},
     "markers": DEFAULT_MARKERS,
@@ -79,7 +78,6 @@ class Config:
     vendors_file: Path
     state_dir: Path
     duration: float | None
-    sessions_per_hour: float
     seed: int | None
     canary_listener: dict
     markers: list
@@ -128,7 +126,6 @@ class Config:
             "vendors_file": str(self.vendors_file),
             "state_dir": str(self.state_dir),
             "duration": self.duration,
-            "sessions_per_hour": self.sessions_per_hour,
             "seed": self.seed,
             "canary_listener": dict(self.canary_listener),
             "markers": list(self.markers),
@@ -310,7 +307,6 @@ def build_config(raw: dict, base_dir: Path | None = None) -> Config:
         vendors_file=resolve(data["vendors_file"]),
         state_dir=resolve(data["state_dir"]),
         duration=duration,
-        sessions_per_hour=float(data["sessions_per_hour"]),
         seed=data["seed"],
         canary_listener=listener,
         markers=list(data["markers"]),
@@ -321,7 +317,7 @@ def build_config(raw: dict, base_dir: Path | None = None) -> Config:
         public_share=float(data["public_share"]),
         max_tasks=int(data["max_tasks"]),
         review_every=int(data["review_every"]),
-        max_tokens=int(data["max_tokens"]),
+        max_tokens=_reply_limit(data["max_tokens"]),
         timeout=float(data["timeout"]),
         retries=int(data["retries"]),
         backoff=float(data["backoff"]),
@@ -338,6 +334,12 @@ def build_config(raw: dict, base_dir: Path | None = None) -> Config:
         narrative=_narrative(data.get("narrative")),
         workspace=_workspace(data.get("workspace")),
     )
+
+
+def _reply_limit(value) -> int:
+    if int(value) < 0:
+        raise ConfigError("max_tokens is 0 (no limit) or more")
+    return int(value)
 
 
 def _personas(raw, resolve) -> dict:
@@ -370,6 +372,8 @@ def _narrative(raw) -> dict:
         raise ConfigError("narrative.context_tokens must be 1000..2000000")
     if not 1 <= int(spec["harness_interactions"]) <= 1000:
         raise ConfigError("narrative.harness_interactions must be 1..1000")
+    if int(spec["reply_tokens"]) < 0:
+        raise ConfigError("narrative.reply_tokens is 0 (no limit) or more")
     bad = [t for t in spec["triggers"] if t not in ("date", "deployment", "identity", "keyword")]
     if bad:
         raise ConfigError(f"narrative.triggers: unknown {bad}")

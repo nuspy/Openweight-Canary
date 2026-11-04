@@ -121,7 +121,11 @@ class Provider:
 
     def _body(self, messages: list[dict], system: str | None, max_tokens: int,
               tools: list[dict] | None = None) -> bytes:
-        body: dict = {"messages": messages, "max_tokens": max_tokens}
+        body: dict = {"messages": messages}
+        if max_tokens and max_tokens > 0:
+            body["max_tokens"] = int(max_tokens)
+        elif self.kind == "anthropic":
+            body["max_tokens"] = 32000                                  # that API cannot be asked for no limit
         if self.spec.get("model"):
             body["model"] = self.spec["model"]
         if self.kind == "openai":

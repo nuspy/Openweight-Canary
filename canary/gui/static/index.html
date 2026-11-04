@@ -179,7 +179,7 @@ pre { background: var(--panel); border: 1px solid var(--line); border-radius: 8p
   <div class="card grid2">
     <label class="field"><span>Turns per conversation</span><input type="number" id="n-turns" min="2" max="1000"></label>
     <label class="field"><span>Most text a conversation may hold (tokens)</span><input type="number" id="n-ctx" min="1000"></label>
-    <label class="field"><span>Tokens per reply, thinking included</span><input type="number" id="n-reply" min="50"></label>
+    <label class="field"><span>Tokens per reply, thinking included (0: no limit)</span><input type="number" id="n-reply" min="0"></label>
     <label class="field"><span>Turns of the story used under a harness</span><input type="number" id="n-harness" min="1" max="1000"></label>
   </div>
   <div class="card" id="trigger-list"></div>
@@ -187,12 +187,11 @@ pre { background: var(--panel); border: 1px solid var(--line); border-radius: 8p
   <div class="card grid2">
     <label class="field"><span>AI review of the findings every N sessions</span><input type="number" id="p-review" min="1"></label>
     <label class="field"><span>Folder where results are kept</span><input type="text" id="p-state"></label>
-    <label class="field"><span>Sessions per hour (0: no pause between sessions)</span><input type="number" id="p-rate" min="0" step="any"></label>
-    <label class="field"><span>Duration (30m, 2h, 1d or until-stopped)</span><input type="text" id="p-duration"></label>
+        <label class="field"><span>Duration (30m, 2h, 1d or until-stopped)</span><input type="text" id="p-duration"></label>
     <label class="field"><span>Document size (words)</span><input type="number" id="p-words" min="100"></label>
     <label class="field"><span>Share of sessions with a research question (0 to 1)</span><input type="number" id="p-research" min="0" max="1" step="0.05"></label>
     <label class="field"><span>Tool turns per harness conversation</span><input type="number" id="p-hturns" min="1" max="40"></label>
-    <label class="field"><span>Tokens per reply (short sessions)</span><input type="number" id="p-tokens" min="50"></label>
+    <label class="field"><span>Tokens per reply, short sessions (0: no limit)</span><input type="number" id="p-tokens" min="0"></label>
   </div>
   <h2>Mechanisms</h2>
   <div class="card grid2">
@@ -433,7 +432,7 @@ async function loadSettings() {
   group($("context-list"), OPTIONS.contexts, (c.personas || {}).domains || [], "context"); val("w-files", (c.workspace || {}).files ?? 18);
   const nv = c.narrative || {}; val("n-turns", nv.turns ?? 100); val("n-ctx", nv.context_tokens ?? 56000); val("n-reply", nv.reply_tokens ?? 700); val("n-harness", nv.harness_interactions ?? 20);
   group($("trigger-list"), OPTIONS.triggers, nv.triggers || OPTIONS.triggers.map((t) => t.id), "trigger");
-  val("p-state", c.state_dir); val("p-review", c.review_every ?? 10); val("p-rate", c.sessions_per_hour); val("p-duration", c.duration); val("p-words", c.doc_words); val("p-research", c.research_share); val("p-hturns", c.harness_turns); val("p-tokens", c.max_tokens);
+  val("p-state", c.state_dir); val("p-review", c.review_every ?? 10); val("p-duration", c.duration); val("p-words", c.doc_words); val("p-research", c.research_share); val("p-hturns", c.harness_turns); val("p-tokens", c.max_tokens);
   val("m-listener", (c.canary_listener || {}).enabled); val("m-monitor", (c.monitor || {}).base_url || "");
   const r = c.reviewer || {}; val("r-base", r.base_url); val("r-model", r.model); val("r-key", r.api_key);
   if ($("s-base").value) loadTargetModels(); if ($("r-base").value) loadReviewerModels(); val("a-min", (c.alerts || {}).min_severity || "high"); val("a-cmd", (c.alerts || {}).command || "");
@@ -470,7 +469,7 @@ $("save").addEventListener("click", async () => {
     harnesses, personas: { enabled: goals.includes("personas"), categories: picks($("persona-list")), domains: picks($("context-list")) },
     workspace: { enabled: goals.includes("workspace"), files: +val("w-files") },
     narrative: { enabled: goals.includes("narrative"), turns: +val("n-turns"), context_tokens: +val("n-ctx"), reply_tokens: +val("n-reply"), harness_interactions: +val("n-harness"), triggers: picks($("trigger-list")) },
-    state_dir: val("p-state"), review_every: +val("p-review"), sessions_per_hour: +val("p-rate"), duration: val("p-duration"), doc_words: +val("p-words"), research_share: +val("p-research"), harness_turns: +val("p-hturns"), max_tokens: +val("p-tokens"),
+    state_dir: val("p-state"), review_every: +val("p-review"), duration: val("p-duration"), doc_words: +val("p-words"), research_share: +val("p-research"), harness_turns: +val("p-hturns"), max_tokens: +val("p-tokens"),
     canary_listener: { enabled: val("m-listener") }, alerts: { min_severity: val("a-min"), command: val("a-cmd") },
     reviewer: val("r-model") ? { kind: "openai", base_url: val("r-base"), model: val("r-model"), api_key: val("r-key"), extra_headers: {} } : null,
   };

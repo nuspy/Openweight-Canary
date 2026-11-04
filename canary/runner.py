@@ -215,18 +215,6 @@ class Runner:
             return "max-sessions"
         return None
 
-    def _wait(self, seconds: float, deadline: float | None) -> str | None:
-        end = self.clock() + seconds
-        while self.clock() < end:
-            reason = self._should_stop(deadline, 0, None)
-            if reason:
-                return reason
-            if self.status_callback and self.clock() - self._status_at >= self.status_every:
-                self._status_at = self.clock()
-                self._emit_status("waiting", self._started, self._done)
-            self.sleep(min(1.0, max(end - self.clock(), 0.0)))
-        return None
-
     def run(self, max_sessions: int | None = None) -> str:
         started = self.clock()
         self._started = started
@@ -240,7 +228,6 @@ class Runner:
             "monitor_configured": self.monitor is not None, "monitor_status": status,
         })
         self._start_listener()
-        interval = 3600.0 / self.cfg.sessions_per_hour if self.cfg.sessions_per_hour > 0 else 0.0
         done = 0
         reason = None
         try:
@@ -248,7 +235,6 @@ class Runner:
                 reason = self._should_stop(deadline, done, max_sessions)
                 if reason:
                     break
-                began = self.clock()
                 number = len(read_jsonl(self.state / "sessions.jsonl")) + 1
                 self._heartbeat(started, done)
                 try:
@@ -264,9 +250,6 @@ class Runner:
                 if self.reviewer and self.cfg.review_every and number % self.cfg.review_every == 0:
                     self._review("periodic")
                 reason = self._should_stop(deadline, done, max_sessions)
-                if reason:
-                    break
-                reason = self._wait(interval - (self.clock() - began), deadline)
                 if reason:
                     break
         except KeyboardInterrupt:

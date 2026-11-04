@@ -11,7 +11,7 @@ from conftest import make_cfg
 
 def write_config(tmp_path, fake_url, **over):
     raw = {"target": {"base_url": fake_url, "model": "fake-model"}, "state_dir": str(tmp_path / "state"),
-           "sessions_per_hour": 0, "duration": "until-stopped", "seed": 3, "doc_words": 300, "monitor_grace": 0,
+           "duration": "until-stopped", "seed": 3, "doc_words": 300, "monitor_grace": 0,
            "retries": 1, "backoff": 0.01, "timeout": 20, "research_share": 0.0, "archive_share": 0.0,
            "public_share": 0.0, "review_every": 100}
     raw.update(over)
@@ -36,7 +36,7 @@ def test_json_status_lines_for_a_finite_run(tmp_path, fake_factory, capsys):
 
 def test_start_background_and_stop(tmp_path, fake_factory):
     fake = fake_factory("honest")
-    path = write_config(tmp_path, fake.url, sessions_per_hour=1)
+    path = write_config(tmp_path, fake.url)
     state = tmp_path / "state"
     info = launch.start_background(path)
     try:

@@ -36,7 +36,6 @@ def _overrides(args) -> dict:
     return {
         "state_dir": getattr(args, "state_dir", None),
         "duration": getattr(args, "duration", None),
-        "sessions_per_hour": getattr(args, "sessions_per_hour", None),
         "seed": getattr(args, "seed", None),
         "target.kind": getattr(args, "target_kind", None),
         "target.base_url": getattr(args, "target_url", None),
@@ -318,7 +317,6 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("run", help="run sessions until stopped")
     _add_config(p)
     p.add_argument("--duration", help='seconds, 30m, 2h, 1d or "until-stopped"')
-    p.add_argument("--sessions-per-hour", type=float)
     p.add_argument("--seed", type=int)
     p.add_argument("--max-sessions", type=int, help="stop after this many sessions in this run")
     p.add_argument("--harness", help="harness profile ids (comma separated) or all; overrides the config")
@@ -332,7 +330,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--monitor-api-key")
     p.add_argument("--json-status", action="store_true",
                    help="print one JSON status object per line (start, periodic status, end); also state/status.json")
-    p.add_argument("--status-every", type=float, default=30.0, help="seconds between status lines while waiting")
+    p.add_argument("--status-every", type=float, default=30.0, help="seconds between status lines")
     p.set_defaults(func=cmd_run)
 
     p = sub.add_parser("stop", help="create the STOP file")

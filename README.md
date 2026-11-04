@@ -190,7 +190,6 @@ Add or change entries in `vendors.local.json` next to `canary.json` (merged over
 | `vendors_file` | path of the local catalog override (default `vendors.local.json`) |
 | `state_dir` | where everything is stored (default `./state`) |
 | `duration` | seconds, `30m`, `2h`, `1d` or `"until-stopped"`; applies per `run` |
-| `sessions_per_hour` | pace; 0 means as fast as possible |
 | `seed` | makes document and session choices repeatable |
 | `canary_listener` | `{enabled, host, port, public_base_url}` |
 | `markers`, `domains` | classification markers and document domains |
@@ -209,7 +208,7 @@ Keys starting with `_` are comments.
 
 Commands: `presets`, `harnesses [--json]`, `init [--dir D] [--force] [--runtime R --model M --vendor V --target-url U]`, `run`,
 `netwatch`, `stop [--clear]`, `status`, `verify`, `report`, `materials [--count N] [--fetch]`. `run` accepts
-`--duration`, `--sessions-per-hour`, `--seed`, `--max-sessions`, `--target-url/-kind/-model/-api-key`,
+`--duration`, `--seed`, `--max-sessions`, `--target-url/-kind/-model/-api-key`,
 `--monitor-url/-api-key`, `--json-status`. All commands take `-c FILE` and `--state-dir DIR`.
 
 ## Embedding

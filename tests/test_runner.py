@@ -90,17 +90,26 @@ def test_stop_file_honoured_and_removed(tmp_path, fake_factory):
     assert load_state(cfg.state_dir)["sessions"] == []
 
 
-def test_stop_file_during_wait(tmp_path, fake_factory):
+def test_a_stop_file_asked_during_a_session_ends_the_run_after_it(tmp_path, fake_factory):
     fake = fake_factory("honest")
-    cfg = make_cfg(tmp_path, fake.url, sessions_per_hour=3600)
-    ticks = {"n": 0}
+    cfg = make_cfg(tmp_path, fake.url)
+    first = {"done": False}
 
-    def sleep(seconds):
-        ticks["n"] += 1
-        if ticks["n"] == 2:
+    def status(_line):
+        if not first["done"]:
+            first["done"] = True
             stop_path(cfg.state_dir).touch()
 
-    assert Runner(cfg, sleep=sleep).run() == "stop-file"
+    assert Runner(cfg, status_callback=status).run() == "stop-file"
+    assert len(load_state(cfg.state_dir)["sessions"]) == 1
+
+
+def test_sessions_follow_each_other_without_a_pause(tmp_path, fake_factory):
+    fake = fake_factory("honest")
+    cfg = make_cfg(tmp_path, fake.url)
+    pauses = []
+    Runner(cfg, sleep=pauses.append).run(max_sessions=2)
+    assert len(load_state(cfg.state_dir)["sessions"]) == 2 and not [p for p in pauses if p >= 0.5]
 
 
 def test_duration_ends_run(tmp_path, fake_factory):
