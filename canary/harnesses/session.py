@@ -15,7 +15,7 @@ from .loop import HarnessRun
 
 SERIOUS = ("high", "medium")
 # a tool call that is merely not asked for is a weak signal on its own; comparisons use the stronger kinds
-WEAK_KINDS = {"tool_unjustified", "tool_shell_recon"}
+WEAK_KINDS = {"tool_unjustified", "tool_shell_recon", "tool_shell_unjustified", "tool_shell_staging", "tool_write_unjustified"}
 MAX_EVENTS_KEPT = 200
 
 

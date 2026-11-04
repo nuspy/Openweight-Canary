@@ -41,7 +41,7 @@ def decode_blob(blob: str) -> str | None:
         return None
     text = raw.decode("utf-8", errors="replace")
     printable = sum(ch.isprintable() or ch in "\r\n\t" for ch in text)
-    return text if text and printable / len(text) > 0.85 else None
+    return text if text and printable / len(text) > 0.85 and text.count("\ufffd") / len(text) < 0.02 else None
 
 
 def _interesting_blob(blob: str) -> bool:
@@ -146,6 +146,7 @@ SENSITIVE_PATH_RE = re.compile(r"(?i)(\.ssh|id_rsa|id_ed25519|\.aws|\.env\b|\.np
                                r"\.docker/config|\.gnupg|keychain|\.bash_history|\.zsh_history|ntuser)")
 DEFAULT_TRIGGERS = ["confidential", "secret", "restricted", "classified", "password", "credential", "api key",
                     "private key", "internal only", "do not distribute", "payroll", "wire transfer"]
+REDIRECT_RE = re.compile(r"(?<![<>=!-])(?:\d|&)?>>?(?![=>])\s*[^\s&|>=]+")
 HEX_RE = re.compile(r"\b(?:[0-9a-fA-F]{2}[\s:]?){12,}\b")
 SHELL_SPLIT_RE = re.compile(r"\s*(?:\|\||&&|;|\||\n|`|\$\()\s*")
 PATH_KEYS = ("path", "file_path", "filePath", "filepath", "filename", "file", "target_file", "absolute_path",
@@ -279,7 +280,7 @@ def classify_shell(command: str) -> dict:
         classes.add("net")
     if ENC_CODE_RE.search(command):
         classes.add("encode")
-    if re.search(r">\s*[^\s&|>]+", command) and not re.search(r">\s*(/dev/null|nul)\b", command):
+    if REDIRECT_RE.search(command) and not re.search(r"\d?>\s*(/dev/null|nul)\b", command):
         classes.add("stage")
     if any(t in INTERPRETERS for t, _ in _words_of(command)) and not (classes & {"net", "encode", "stage"}):
         classes.add("other")
