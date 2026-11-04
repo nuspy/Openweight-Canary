@@ -177,9 +177,9 @@ mark { background: var(--l2); color: inherit; padding: 0 2px; border-radius: 3px
   <p class="muted small">The settings are saved in the config file the page was started with. A key you type is stored there; a key already stored is shown as ***.</p>
   <h2 class="standalone-only">Engine and model</h2>
   <div class="card grid2 standalone-only">
-    <label class="field"><span>Program that serves the model (engine): sets which processes are watched</span><select id="s-runtime"></select></label>
+    <label class="field"><span>Type of program that serves the model (engine)</span><select id="s-runtime"></select></label>
     <div class="field"><span>Model, as the server at that address offers it</span><div class="row"><select id="s-model-pick" aria-label="Models offered by the server" style="flex:1 1 220px"></select><button type="button" id="s-model-load">Load the list</button></div><input type="text" id="s-model" placeholder="or type a model name" aria-label="Model name"></div>
-    <label class="field"><span>Address where that program listens (you can type any)</span><input type="text" id="s-base"></label>
+    <label class="field"><span>Address of the server: this PC or another machine</span><input type="text" id="s-base" placeholder="http://name-or-ip:port"></label>
     <label class="field"><span>Vendor (empty: detected from the model name)</span><select id="s-vendor"></select></label>
     <label class="field"><span>Key of the server, if it needs one</span><input type="password" id="s-key" autocomplete="off"></label>
   </div>
