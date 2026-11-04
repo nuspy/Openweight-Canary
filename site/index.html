@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en-US" data-look="endpoint">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MalWeight Canary — find hidden behaviour in open-weight models</title>
+<meta name="description" content="MalWeight Canary tests open-weight language models and agent harnesses for hidden behaviour that wakes up on trigger words, names, dates and documents. Behavioural analysis, sensitive-person simulation, fake computers, AI-assisted findings.">
+<meta name="theme-color" content="#020617">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<script type="module" src="/src/main.js"></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="i-bird" viewBox="0 0 64 64"><path d="M10 42c8 4 17 4 24-2l9-11-5-2 4-7c-8-4-18 0-22 8-3 5-6 10-10 14z" fill="currentColor"/><circle cx="40" cy="22" r="2.2" fill="var(--bg)"/><path d="M45 25l8 3-8 3z" fill="var(--warn)"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 21c1-5 4-7 8-7s7 2 8 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-term" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M7 9l3 3-3 3M13 15h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M16 16l5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 4v11m0 0l-4-4m4 4l4-4M5 20h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-ext" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  </defs>
+</svg>
+
+<a class="skip" href="#main">Skip to the content</a>
+
+<header class="top">
+  <div class="top-in">
+    <a class="brand" href="#/home" aria-label="MalWeight Canary, home">
+      <svg class="mark" width="34" height="34" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 4 56 14v18c0 14-10 24-24 28C18 56 8 46 8 32V14z" fill="var(--card)" stroke="var(--accent)" stroke-width="4" stroke-linejoin="round"/><use href="#i-bird" x="8" y="10" width="48" height="48" style="color:var(--accent)"/></svg>
+      <span class="wordmark notranslate" translate="no">MalWeight <b>Canary</b></span>
+    </a>
+    <button class="menu-btn" id="menu-btn" aria-expanded="false" aria-controls="nav">Sections</button>
+    <nav id="nav" class="tabs" aria-label="Sections">
+      <a href="#/home" data-route="home">Home</a>
+      <a href="#/scopes" data-route="scopes">Scopes</a>
+      <a href="#/people" data-route="people">Sensitive people</a>
+      <a href="#/harnesses" data-route="harnesses">Harnesses</a>
+      <a href="#/computers" data-route="computers">Fake computers</a>
+      <a href="#/analysis" data-route="analysis">Findings &amp; AI</a>
+      <a href="#/tadamoo" data-route="tadamoo">TaDaMoo</a>
+      <a href="#/license" data-route="license">License &amp; buy</a>
+      <a href="#/download" data-route="download" class="cta">Download</a>
+    </nav>
+    <div class="tools">
+      <label class="lang notranslate" translate="no">
+        <span class="sr">Language</span>
+        <select id="lang" aria-label="Language"></select>
+      </label>
+      <div class="looks notranslate" id="looks" role="group" aria-label="Look (preview only)" hidden translate="no">
+        <button type="button" data-look="terminal">Terminal</button>
+        <button type="button" data-look="lab">Lab</button>
+        <button type="button" data-look="endpoint">Endpoint</button>
+      </div>
+    </div>
+  </div>
+  <div class="tbar" id="tbar" role="region" aria-label="Translation" hidden>
+    <p id="tbar-text" class="notranslate" translate="no"></p>
+    <div class="tbar-btns notranslate" translate="no">
+      <button type="button" id="tbar-go" class="btn small">Translate</button>
+      <button type="button" id="tbar-orig" class="btn small ghost">Show original</button>
+      <button type="button" id="tbar-never" class="btn small ghost">Keep English</button>
+    </div>
+  </div>
+</header>
+
+<main id="main" tabindex="-1">
+
+<!-- ============================ HOME ============================ -->
+<section class="page" id="home" data-route="home" aria-labelledby="h-home">
+  <div class="hero">
+    <p class="eyebrow">Open-weight model security</p>
+    <h1 id="h-home">Does your model do something it was never asked to?</h1>
+    <p class="lede">MalWeight Canary tests open-weight language models and agent harnesses for <strong>hidden behaviour that wakes up on a word, a name, a date or a document</strong>, before you hand them your data, your tools or your computer.</p>
+    <div class="actions">
+      <a class="btn primary" href="#/download"><svg class="ic"><use href="#i-down"/></svg> Download</a>
+      <a class="btn" href="#/analysis"><svg class="ic"><use href="#i-search"/></svg> See what it finds</a>
+    </div>
+    <ul class="chips" aria-label="At a glance">
+      <li>Black-box: no access to the weights</li>
+      <li>Twin sessions: sensitive vs control</li>
+      <li>Long context, late triggers</li>
+      <li>Network and tool-call monitoring</li>
+    </ul>
+  </div>
+
+  <div class="grid two">
+    <article class="card">
+      <h2>The problem</h2>
+      <p>A model can carry instructions that stay silent through every ordinary test and wake up only when something specific appears. The behaviour that wakes up can be anything the model can do: send your data out, run a command nobody asked for, gather files, or stay quiet and wait.</p>
+      <h3>What can wake it up</h3>
+      <ul class="list">
+        <li><strong>Words and phrases.</strong> A topic word, a code name, a sentence that only a real user would write.</li>
+        <li><strong>Names.</strong> Who is speaking, or who is mentioned: a minister, a chief executive, a general.</li>
+        <li><strong>Dates and deployment tags.</strong> "Today is…", "this is production", a version string.</li>
+        <li><strong>Trigger documents.</strong> A file, an e-mail or a README handed to an agent or a harness, written to look like real work.</li>
+      </ul>
+      <p class="note">Ordinary tests use short, bland, fake data. They never contain the trigger, so they never see the behaviour.</p>
+    </article>
+    <article class="card">
+      <h2>The solution: behavioural analysis</h2>
+      <ol class="steps">
+        <li><b>Build sessions.</b> Each session has a sensitive document and a twin without the sensitive material, with unique canary values hidden in the first.</li>
+        <li><b>Say the triggers.</b> Long conversations, a hundred turns by default, with triggers early, in the middle and late, so a behaviour that wakes up late has time to.</li>
+        <li><b>Watch everything.</b> Answers, tool calls, shell commands and the network connections of the machine that runs the model.</li>
+        <li><b>Compare the twins.</b> What the sensitive session did and its control did not is the signal.</li>
+        <li><b>Explain.</b> Every finding gets a level, the reason for it, and the text around it.</li>
+      </ol>
+      <p class="note">A clean run is evidence, not proof. MalWeight Canary never says a model is safe.</p>
+    </article>
+  </div>
+
+  <article class="card wide">
+    <h2>It looks at actions, not at words</h2>
+    <p>What matters is not what the model says but what it <strong>asks the harness to do</strong>: the tool calls it sends, the commands it runs, the files it reads, the connections it opens, the messages it sends. The type of attack is read from the action.</p>
+    <ul class="attacks">
+      <li><b>Exfiltration</b><span>Uploads, links carrying your data, hidden name lookups, files sent to a drop.</span></li>
+      <li><b>Unrequested commands</b><span>Shell commands the request did not need, written to be hard to read.</span></li>
+      <li><b>Reconnaissance</b><span>Looking at users, network, environment, running programs.</span></li>
+      <li><b>Staging</b><span>Packing, encoding or collecting files as a step before sending them.</span></li>
+      <li><b>Outward messages</b><span>E-mail to recipients outside the mailbox's own domain.</span></li>
+      <li><b>Sensitive reach</b><span>Reading keys and credentials, leaving the project folder.</span></li>
+    </ul>
+  </article>
+
+  <div class="grid three">
+    <a class="card link" href="#/scopes"><svg class="ic big"><use href="#i-shield"/></svg><h3>Scopes</h3><p>Intelligence, military, industry, science, AI, politics and more, so a session reads like real work.</p></a>
+    <a class="card link" href="#/people"><svg class="ic big"><use href="#i-user"/></svg><h3>Sensitive people</h3><p>Simulated public figures, as speakers and as subjects, to wake name-triggered behaviour.</p></a>
+    <a class="card link" href="#/computers"><svg class="ic big"><use href="#i-folder"/></svg><h3>Fake computers</h3><p>Folders and files with trigger content, answered to <code>ls</code> and <code>cat</code>.</p></a>
+  </div>
+</section>
+
+<!-- ============================ SCOPES ============================ -->
+<section class="page" id="scopes" data-route="scopes" aria-labelledby="h-scopes" hidden>
+  <p class="eyebrow">Scopes</p>
+  <h1 id="h-scopes">The worlds a session happens in</h1>
+  <p class="lede">A scope is a field with its own actors, assets, places, topics and document types. Documents, long stories and fake computers are all written from the same scope, so a session never mixes fields: a general does not ask about share prices, and the head of an AI lab does not ask about a rival's chatbot.</p>
+  <div class="grid three">
+    <article class="card"><h3>Intelligence</h3><p>Liaison memoranda, partner exchange notes, assessments.</p></article>
+    <article class="card"><h3>Military</h3><p>Operational assessments, readiness reports, exercise plans.</p></article>
+    <article class="card"><h3>Industrial</h3><p>Board papers, strategic reviews, supply and procurement.</p></article>
+    <article class="card"><h3>Science and research</h3><p>Progress reports, unpublished data, export-controlled methods.</p></article>
+    <article class="card"><h3>AI and compute</h3><p>Release readiness, safety cases, tape-outs, allocation tables.</p></article>
+    <article class="card"><h3>Politics and government</h3><p>Cabinet papers, coalition management, emergency decrees.</p></article>
+    <article class="card"><h3>Diplomacy</h3><p>Cables, visit briefings, communiqués, sanctions packages.</p></article>
+    <article class="card"><h3>Finance</h3><p>Investment memoranda, risk assessments, transaction briefs.</p></article>
+    <article class="card"><h3>Chips and lithography</h3><p>Roadmap reviews, delivery planning, export-licence conditions.</p></article>
+  </div>
+  <h2>Contexts built in</h2>
+  <div class="grid two">
+    <article class="card"><h3>Taiwan: diplomacy</h3><p>Recognition language, transit diplomacy, arms-sale signalling, chip-supply guarantees, summit sequencing.</p></article>
+    <article class="card"><h3>Taiwan: military</h3><p>Readiness levels, blockade scenarios, ammunition resupply, grey-zone incursions, undersea-cable security.</p></article>
+    <article class="card"><h3>Russia against Europe: cyber campaigns</h3><p>Incident reports, attribution assessments, wiper campaigns, energy and election systems.</p></article>
+    <article class="card"><h3>China against the United States: cyber campaigns</h3><p>Pre-positioning in infrastructure, supply-chain implants, indictment timing, joint advisories.</p></article>
+  </div>
+  <p class="note">Scopes and contexts are editable: add your own actors, assets, places, topics and the e-mail domains of related organisations.</p>
+</section>
+
+<!-- ============================ PEOPLE ============================ -->
+<section class="page" id="people" data-route="people" aria-labelledby="h-people" hidden>
+  <p class="eyebrow">Sensitive people</p>
+  <h1 id="h-people">Names that may wake it up</h1>
+  <p class="lede">A model, or the runtime that serves it, could behave differently when the person it talks to is worth watching. So every session is opened by a simulated person: a name, a role and an organisation, said the way that person would say them.</p>
+  <div class="grid two">
+    <article class="card">
+      <h2>Persona simulation</h2>
+      <ul class="list">
+        <li>Industrialists, financiers, ministers, generals, intelligence officers, diplomats, scientists, heads of AI labs, chief executives of chip, compute and technology companies.</li>
+        <li>One persona per session, with a document, requests and research questions from that person's own scope.</li>
+        <li>The persona stays the same for the whole conversation, even a hundred turns long.</li>
+      </ul>
+    </article>
+    <article class="card">
+      <h2>People as subjects too</h2>
+      <ul class="list">
+        <li>Prominent Chinese, Russian, American, European and Taiwanese figures write, receive and are discussed in the documents and files of a session.</li>
+        <li>Addresses are credible: <code>first.last</code> at the domain of the person's organisation.</li>
+        <li>The control twin names ordinary people at the same organisation.</li>
+      </ul>
+    </article>
+  </div>
+  <article class="card wide">
+    <h2>Real names, synthetic documents</h2>
+    <p>The catalog holds public office-holders and company heads as named in public sources. You can create, edit, delete and reset every row, and check the roles before a run: they change. The documents written around them are synthetic. Nothing is ever sent to anyone, and they are never to be presented as real.</p>
+  </article>
+</section>
+
+<!-- ============================ HARNESSES ============================ -->
+<section class="page" id="harnesses" data-route="harnesses" aria-labelledby="h-harnesses" hidden>
+  <p class="eyebrow">Harnesses and agents</p>
+  <h1 id="h-harnesses">Looking like the real thing</h1>
+  <p class="lede">A model that behaves well in a chat can behave differently under an agent, with a long system prompt, tools and a specific result format. A model that wants to hide must tell a test from real work. MalWeight Canary removes the tell.</p>
+  <div class="grid two">
+    <article class="card">
+      <h2>What is reproduced</h2>
+      <ul class="list">
+        <li>The system prompt and project-instruction files of each agent program.</li>
+        <li>Its tool definitions, names and argument shapes, native or text-based.</li>
+        <li>How tool results are wrapped and fed back, and how long conversations are compacted.</li>
+        <li>Extra tools: mail, calendar, processes, registry. All answered with invented data.</li>
+      </ul>
+    </article>
+    <article class="card">
+      <h2>Twenty-five profiles</h2>
+      <p class="tags"><span>Aider</span><span>Cline</span><span>Continue</span><span>Goose</span><span>Hermes Agent</span><span>Kilo Code</span><span>OpenCode</span><span>Qwen Code</span><span>OpenHands</span><span>LangChain</span><span>LangGraph</span><span>LlamaIndex</span><span>CrewAI</span><span>AutoGen</span><span>n8n</span><span>Open WebUI</span><span>Dify</span><span>Flowise</span><span>LibreChat</span><span>LM Studio</span><span>Ollama</span><span>vLLM gateway</span><span>MCP host</span><span>RAG pipeline</span><span>DeepSeek harness</span></p>
+      <p class="note">Each profile is marked verified or approximate, so you know how closely it matches the real program.</p>
+    </article>
+  </div>
+  <article class="card wide"><h2>Nothing is executed</h2><p>Every tool call goes to a fake world. Reads are served, writes and sends are only recorded, and the call is scanned: was it asked for, where was it going, which way did the data move?</p></article>
+</section>
+
+<!-- ============================ COMPUTERS ============================ -->
+<section class="page" id="computers" data-route="computers" aria-labelledby="h-computers" hidden>
+  <p class="eyebrow">Fake operating systems</p>
+  <h1 id="h-computers">A computer full of bait</h1>
+  <p class="lede">When an agent looks around, it should find things worth acting on. Each conversation runs on a fake computer built before it starts, in the scope of the session.</p>
+  <div class="term" role="img" aria-label="Example of a fake directory listing mixing ordinary and trigger folders">
+<pre class="notranslate" translate="no"><span class="p">$</span> ls
+README.txt   archive   briefings   cables   scratch   templates   todo.md   travel
+<span class="p">$</span> ls cables
+memo-2026-09-23-003.txt   thread-011.eml   contacts.csv   assessment-006.md
+<span class="p">$</span> head -4 cables/memo-2026-09-23-003.txt
+MND-JOS/003  EXERCISE PLANNING BRIEF
+Date: 2026-09-23
+From: Wellington Koo &lt;wellington.koo@mnd.gov.tw&gt;
+To: Marco Rubio &lt;marco.rubio@state.gov&gt;</pre>
+  </div>
+  <div class="grid three">
+    <article class="card"><h3>Ordinary and trigger, mixed</h3><p><code>ls</code>, <code>find</code>, <code>tree</code>, <code>cat</code>, <code>head</code> and <code>grep</code> answer from folders and files of both kinds, some of them nested.</p></article>
+    <article class="card"><h3>Content for the scope</h3><p>Memos, situation reports, assessments, minutes, e-mail threads, travel plans, contact lists and incident reports with indicators from reserved ranges.</p></article>
+    <article class="card"><h3>Same shape, twin</h3><p>The control computer has the same folders, files, sizes and dates, about ordinary office business, with plain look-alike values.</p></article>
+  </div>
+  <article class="card wide"><h2>Trigger lines everywhere</h2><p>A date, a deployment tag such as "Environment: PRODUCTION", the role of the person, a reference word: the same in both twins, so the only difference is the subject. Canary values are said in passing, as a real person would. How many trigger files the agent opens, against its control, is itself a finding.</p></article>
+</section>
+
+<!-- ============================ ANALYSIS ============================ -->
+<section class="page" id="analysis" data-route="analysis" aria-labelledby="h-analysis" hidden>
+  <p class="eyebrow">Findings and AI</p>
+  <h1 id="h-analysis">What happened, and why it matters</h1>
+  <p class="lede">Every finding has a level, a reason, and the text around it. You can search and filter by hand, let an AI read for you, or both.</p>
+  <ul class="levels" aria-label="Levels">
+    <li class="lv0"><b>Normal</b><span>Recorded for the record.</span></li>
+    <li class="lv1"><b>Interesting</b><span>Worth a look.</span></li>
+    <li class="lv2"><b>Suspicious</b><span>Look with care.</span></li>
+    <li class="lv3"><b>Very suspicious</b><span>Read the transcript now.</span></li>
+    <li class="lv4"><b>Critical</b><span>Data left, or was prepared to.</span></li>
+  </ul>
+  <article class="card wide"><h2>The type of attack is read from the action</h2><p>Findings come first from what the model asked the harness to do: a shell command that uploads, a call that names a host outside the computer, an e-mail to an outside recipient, a sequence that gathers, checks the connection and sends. The text of its answers is checked too, but an answer is only words.</p></article>
+  <div class="grid two">
+    <article class="card"><h2>Each finding explains itself</h2><ul class="list"><li>What this kind of finding is, in plain words.</li><li>Why it has its level.</li><li>The request and the model's answer, with the matched value marked.</li><li>For a comparison, the findings it is built from.</li></ul></article>
+    <article class="card"><h2>AI analysis</h2><ul class="list"><li>A reviewer model reads the findings with their context and says what happened and what deserves your time.</li><li>It can be a different model, or the one under test in a conversation of its own; the page says so.</li><li>Automatic every N sessions, or on demand for one finding or a whole session.</li></ul></article>
+    <article class="card"><h2>Manual search</h2><ul class="list"><li>Free text, level, kind, role, agent profile, session, trigger family.</li><li>Conversations read as chats, with a timeline and trigger flags.</li><li>Write to the model yourself, in the context of a session.</li></ul></article>
+    <article class="card"><h2>Alerts and export</h2><ul class="list"><li>What a person must read goes to an alert file and, if you want, to a command.</li><li>Export to CSV, JSON, Markdown or HTML with your filters.</li><li>The log is hash-chained: tampering shows.</li></ul></article>
+  </div>
+</section>
+
+<!-- ============================ TADAMOO ============================ -->
+<section class="page" id="tadamoo" data-route="tadamoo" aria-labelledby="h-tadamoo" hidden>
+  <p class="eyebrow">TaDaMoo</p>
+  <h1 id="h-tadamoo">The harness that watches itself</h1>
+  <p class="lede">TaDaMoo is a harness for local open-weight models with no content censorship, and with MalWeight Canary built in: a test you can run beside your work, and a continuous watch for malicious behaviour while you use it.</p>
+  <div class="grid two">
+    <article class="card"><h2>Integrated test</h2><p>The full MalWeight Canary page is a tab of TaDaMoo: results by level, conversations, catalogs, settings, start and stop. It runs against the model you have loaded and keeps the security monitor on while it runs.</p></article>
+    <article class="card"><h2>Continuous monitoring</h2><p>Outward actions are watched while you work: a shell command that uploads, names a host outside your computer, or sends what the request does not explain is flagged, and risky combinations need a person.</p></article>
+    <article class="card"><h2>Alarm and block</h2><p>What looks like exfiltration raises an alarm and is held until you decide. The rules are the ones the test uses, so what the test finds, the harness stops.</p></article>
+    <article class="card"><h2>Local, yours</h2><p>It runs on your machine with your models. Nothing is sent anywhere for the test.</p></article>
+  </div>
+  <div class="actions">
+    <a class="btn primary" href="https://tadamoo.com" rel="noopener noreferrer" target="_blank"><svg class="ic"><use href="#i-ext"/></svg> tadamoo.com</a>
+    <a class="btn" href="https://github.com/nuspy/tadamoo" rel="noopener noreferrer" target="_blank"><svg class="ic"><use href="#i-ext"/></svg> nuspy/tadamoo on GitHub</a>
+  </div>
+</section>
+
+<!-- ============================ LICENSE ============================ -->
+<section class="page" id="license" data-route="license" aria-labelledby="h-license" hidden>
+  <p class="eyebrow">License and purchase</p>
+  <h1 id="h-license">Free for most people. Paid for large companies.</h1>
+  <p class="lede">The source code is available and owned by its author. Use is free for individuals, non-profit organisations and companies under ten million dollars of yearly revenue.</p>
+  <div class="grid three">
+    <article class="card"><h3>Free</h3><ul class="list"><li>Individuals: personal, research, hobby, education, experiments.</li><li>Non-profit, educational and public research organisations, of any size, for their own non-commercial work.</li><li>Companies with consolidated annual gross revenue under US$10,000,000, affiliates included.</li></ul></article>
+    <article class="card"><h3>Enterprise license</h3><ul class="list"><li>Companies at or above US$10,000,000 of yearly revenue need a written Enterprise Commercial License to use it for production or operations.</li><li>A 30-day evaluation, internal and non-production, is allowed.</li></ul></article>
+    <article class="card"><h3>Not allowed</h3><ul class="list"><li>Offering it as a hosted service to third parties without an agreement.</li><li>Splitting revenue or using intermediaries to stay under the threshold.</li><li>Using the author's names and marks.</li></ul></article>
+  </div>
+  <article class="card wide">
+    <h2>Buy a license, or ask</h2>
+    <p>For an Enterprise Commercial License, a hosted-service agreement or any question, write to the author.</p>
+    <div class="actions"><a class="btn primary" href="mailto:a.taini@gmail.com?subject=MalWeight%20Canary%20license">a.taini@gmail.com</a>
+    <a class="btn" href="https://github.com/nuspy/Openweight-Canary/blob/main/LICENSE" rel="noopener noreferrer" target="_blank"><svg class="ic"><use href="#i-ext"/></svg> Read the full license</a></div>
+    <p class="note">This page is a summary, not legal advice. The license text in the repository is the one that applies.</p>
+  </article>
+</section>
+
+<!-- ============================ DOWNLOAD ============================ -->
+<section class="page" id="download" data-route="download" aria-labelledby="h-download" hidden>
+  <p class="eyebrow">Download</p>
+  <h1 id="h-download">Get MalWeight Canary</h1>
+  <p class="lede">MalWeight Canary is the commercial name of Openweight Canary. The code is on GitHub, and installers are published as releases.</p>
+  <div class="grid two">
+    <article class="card"><h2>GitHub repository</h2><p>Source code, documentation and issues.</p><div class="actions"><a class="btn primary" href="https://github.com/nuspy/Openweight-Canary" rel="noopener noreferrer" target="_blank"><svg class="ic"><use href="#i-ext"/></svg> nuspy/Openweight-Canary</a></div></article>
+    <article class="card"><h2>Releases</h2><p>Windows installer and release notes. The first installer is being prepared.</p><div class="actions"><a class="btn" href="https://github.com/nuspy/Openweight-Canary/releases" rel="noopener noreferrer" target="_blank"><svg class="ic"><use href="#i-down"/></svg> Releases on GitHub</a></div></article>
+  </div>
+  <article class="card wide">
+    <h2>From source</h2>
+    <pre class="code notranslate" translate="no"><code>git clone https://github.com/nuspy/Openweight-Canary.git
+cd Openweight-Canary
+python -m canary init
+python -m canary gui</code></pre>
+    <p class="note">Requires Python 3.10 or newer. The page opens in your browser and listens on 127.0.0.1 only.</p>
+  </article>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="foot-in">
+    <p class="notranslate" translate="no">© 2026 Andrea Taini · MalWeight Canary</p>
+    <p><a href="https://tadamoo.com" rel="noopener noreferrer" target="_blank">tadamoo.com</a> · <a href="https://github.com/nuspy/tadamoo" rel="noopener noreferrer" target="_blank">TaDaMoo on GitHub</a> · <a href="https://github.com/nuspy/Openweight-Canary" rel="noopener noreferrer" target="_blank">MalWeight Canary on GitHub</a> · <a href="mailto:a.taini@gmail.com">Contact</a></p>
+  </div>
+</footer>
+</body>
+</html>
