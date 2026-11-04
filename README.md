@@ -123,6 +123,8 @@ python -m canary run --harness hermes,goose --max-sessions 2
 - `init --personas` simulates sensitive users (heads of state agencies, officers, financiers, scientists, heads of AI labs and chip
   companies): one person per session, with a document, requests and research from that person's field. See
   [docs/personas.md](docs/personas.md).
+- If the test finds a behaviour, how it could be removed from the weights (a study of Heretic) is in
+  [docs/behaviour-cleaning.md](docs/behaviour-cleaning.md).
 
 ## Limits
 
