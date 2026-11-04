@@ -115,13 +115,12 @@ def test_duration_ends_run(tmp_path, fake_factory):
     assert Runner(cfg, clock=clock).run() == "duration"
 
 
-def test_reviewer_must_differ_from_target(tmp_path):
+def test_the_reviewer_may_be_the_model_under_test_and_its_reviews_say_so(tmp_path):
     same = {"kind": "openai", "base_url": "http://127.0.0.1:9/", "model": "m"}
     cfg = make_cfg(tmp_path, "http://127.0.0.1:9", reviewer=same, target={**same, "base_url": "http://127.0.0.1:9"})
-    with pytest.raises(ConfigError, match="reviewer must differ"):
-        make_reviewer(cfg)
-    with pytest.raises(ConfigError):
-        Runner(cfg)
+    assert make_reviewer(cfg).is_target
+    other = make_cfg(tmp_path, "http://127.0.0.1:9", reviewer={**same, "model": "other"}, target={**same, "base_url": "http://127.0.0.1:9"})
+    assert not make_reviewer(other).is_target
 
 
 def test_reviews_written_and_report(tmp_path, fake_factory):

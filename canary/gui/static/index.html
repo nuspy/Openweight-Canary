@@ -51,7 +51,8 @@ table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
 tbody tr { cursor: pointer; } tbody tr:hover { outline: 2px solid var(--focus); outline-offset: -2px; }
 td.ev { font-family: ui-monospace, Consolas, monospace; font-size: .82rem; word-break: break-word; max-width: 420px; }
-[data-embed] .standalone-only, [data-embed] h1 { display: none; }
+[data-embed] .standalone-only, [data-embed] h1, [data-embed] header nav, [data-embed] .promo .standalone-only { display: none; }
+[data-embed] .promo { justify-content: flex-end; }
 [data-embed] header { padding: 6px 0; border: 0; background: transparent; }
 .promo { position: relative; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: flex-end; padding: 6px 16px; background: var(--panel); border-bottom: 1px solid var(--line); font-size: .9rem; }
 .promo a { color: var(--accent); font-weight: 600; min-height: 44px; display: inline-flex; align-items: center; gap: 6px; }
@@ -229,6 +230,14 @@ const NAMES = ["Normal", "Interesting", "Suspicious", "Very suspicious", "Critic
 const SYM = ["○", "◆", "▲", "⬢", "✖"];
 let LEVELS = [], OPTIONS = null, CONFIG = null, picked = new Set([1, 2, 3, 4]), CURRENT = [];
 
+let HOST_KEY = "";                                    // given by the application that shows this page in a frame
+window.addEventListener("message", (e) => {
+  if (e.origin !== location.origin || !e.data || !e.data.canary) return;
+  const m = e.data.canary;
+  if (typeof m.key === "string") HOST_KEY = m.key;
+  if (m.theme) document.documentElement.dataset.theme = m.theme;
+  if (m.section) showTab(m.section);
+});
 function h(tag, attrs, ...kids) {
   const e = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) { if (k === "class") e.className = v; else if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else if (v !== false && v != null) e.setAttribute(k, v === true ? "" : v); }
@@ -236,7 +245,8 @@ function h(tag, attrs, ...kids) {
   return e;
 }
 const api = async (path, body) => {
-  const r = await fetch(path, body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json", "X-Canary-GUI": "1" }, body: JSON.stringify(body) });
+  const auth = HOST_KEY ? { Authorization: "Bearer " + HOST_KEY } : {};
+  const r = await fetch(path, body === undefined ? { headers: auth } : { method: "POST", headers: { "Content-Type": "application/json", "X-Canary-GUI": "1", ...auth }, body: JSON.stringify(body) });
   const data = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(data.error || r.statusText);
   return data;
@@ -327,7 +337,7 @@ async function runAnalysis(body, out) {
     const r = await api("api/analyse", body);
     if (!r.ok) { out.replaceChildren(h("p", {}, r.error)); return; }
     const a = r.assessment;
-    out.replaceChildren(h("h2", {}, "Pre-analysis by " + (r.model || "the reviewer")), h("p", { class: "small muted" }, "An aid to reading, not a verdict. It saw " + r.findings + " findings."),
+    out.replaceChildren(h("h2", {}, "Pre-analysis by " + (r.model || "the reviewer")), h("p", { class: "small muted" }, "An aid to reading, not a verdict. It saw " + r.findings + " findings." + (r.reviewer_is_target ? " The reviewer is the model under test, in a conversation of its own: weigh what it says accordingly." : "")),
       a ? [h("p", {}, a.summary || ""), h("h2", {}, "Worth reading"), h("ul", {}, (a.priorities || []).map((x) => h("li", {}, "n=" + x.n + ": " + x.why))),
            h("h2", {}, "Probably legitimate"), h("ul", {}, (a.probably_legitimate || []).map((x) => h("li", {}, "n=" + x.n + ": " + x.why))),
            h("h2", {}, "Next checks"), h("ul", {}, (a.next_checks || []).map((x) => h("li", {}, x)))] : h("pre", {}, r.text));
@@ -490,6 +500,9 @@ $("cat-reset-all").addEventListener("click", async () => { try { await api("api/
 /* start */
 (async () => {
   try { OPTIONS = await api("api/options"); const sel = $("f-harness"); OPTIONS.harnesses.forEach((p) => sel.append(h("option", { value: p.id }, p.id))); } catch (e) {}
+  const qs = new URLSearchParams(location.search);
+  if (qs.get("theme")) document.documentElement.dataset.theme = qs.get("theme");
+  if (qs.get("section")) showTab(qs.get("section"));
   await refreshSummary(); await loadFindings();
   setInterval(async () => { if (!document.hidden) { try { const s = await refreshSummary(); if (s.running && !$("results").hidden) loadFindings(); } catch (e) {} } }, 5000);
 })();

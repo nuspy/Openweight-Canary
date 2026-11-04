@@ -5,7 +5,7 @@ import json
 import time
 from pathlib import Path
 
-from .config import Config, ConfigError, same_endpoint
+from .config import Config, same_endpoint
 from .providers import Provider
 from .stats import digest, load_state
 from .util import iso, write_json
@@ -29,12 +29,9 @@ DIGEST:
 
 
 def make_reviewer(cfg: Config) -> "Reviewer | None":
-    """None when no reviewer is configured; ConfigError when it is the model under test."""
+    """None when no reviewer is configured. The reviewer may be the model under test, in a conversation of its own; its reviews then say so."""
     if not cfg.reviewer:
         return None
-    if same_endpoint(cfg.reviewer, cfg.target):
-        raise ConfigError("reviewer must differ from the target (same base_url and model); "
-                          "a model cannot review evidence about itself")
     return Reviewer(cfg)
 
 
@@ -51,9 +48,8 @@ def parse_assessment(text: str) -> dict | None:
 
 class Reviewer:
     def __init__(self, cfg: Config):
-        if same_endpoint(cfg.reviewer, cfg.target):
-            raise ConfigError("reviewer must differ from the target (same base_url and model)")
         self.cfg = cfg
+        self.is_target = same_endpoint(cfg.reviewer, cfg.target)
         self.provider = Provider(cfg.reviewer, timeout=cfg.timeout, retries=cfg.retries, backoff=cfg.backoff)
         self.dir = cfg.state_dir / "reviews"
 
@@ -79,7 +75,7 @@ class Reviewer:
         number = self._next_number()
         record = {
             "n": number, "time": iso(), "ts": time.time(), "run": run_id, "label": label,
-            "reviewer_model": self.cfg.reviewer.get("model"),
+            "reviewer_model": self.cfg.reviewer.get("model"), "reviewer_is_target": self.is_target,
             "since_session": since, "last_session": dig["last_session"] or since,
             "digest": dig, "reply": reply.to_dict(),
             "assessment": parse_assessment(reply.text) if not reply.error else None,

@@ -33,6 +33,7 @@ from ..vendors import load_catalog
 STATIC = Path(__file__).resolve().parent / "static"
 SECRET_PATHS = (("target", "api_key"), ("reviewer", "api_key"), ("monitor", "api_key"))
 MASK = "***"
+OWNED = ("target", "monitor", "network_watch", "state_dir", "runtime", "vendor", "vendors_file")     # what a host that mounts the page decides itself
 MAX_BODY = 1 << 20
 TRIGGER_FAMILIES = [
     {"id": "date", "label": "A date said in passing", "hint": "today is ..."},
@@ -50,18 +51,24 @@ GOALS = [
 
 
 class App:
-    def __init__(self, config_path: str | Path, state_dir: str | Path | None = None, prefix: str = "", check_host: bool = True):
+    def __init__(self, config_path: str | Path, state_dir: str | Path | None = None, prefix: str = "", check_host: bool = True,
+                 start=None, stop=None, overlay: str | Path | None = None):
+        """`start` and `stop` replace the page's own start and stop when a host runs the test. With `overlay`, settings the page saves
+        (except the ones in OWNED) go to that file, and the config the host writes is only read."""
         self.prefix = prefix.rstrip("/")
         self.check_host = check_host
+        self.start_fn, self.stop_fn = start, stop
+        self.overlay = Path(overlay) if overlay else None
         self.path = Path(config_path).resolve()
         self.override = Path(state_dir).resolve() if state_dir else None
         self.lock = threading.Lock()
 
     # -- config
     def raw(self) -> dict:
-        if self.path.exists():
-            return json.loads(self.path.read_text(encoding="utf-8"))
-        return sample_config()
+        base = json.loads(self.path.read_text(encoding="utf-8")) if self.path.exists() else sample_config()
+        if self.overlay and self.overlay.exists():
+            base = _merge(base, {k: v for k, v in json.loads(self.overlay.read_text(encoding="utf-8")).items() if k not in OWNED})
+        return base
 
     def cfg(self):
         return load_config(self.path if self.path.exists() else None)
@@ -84,6 +91,8 @@ class App:
     def save_config(self, patch: dict) -> dict:
         """Merge `patch` into the config, keep secrets the page only saw masked, check the result by loading it, then write it."""
         with self.lock:
+            if self.overlay:
+                patch = {k: v for k, v in patch.items() if k not in OWNED}
             raw = self.raw()
             merged = _merge(raw, patch)
             for a, b in SECRET_PATHS:
@@ -95,6 +104,14 @@ class App:
                 load_config(tmp)
             finally:
                 shutil.rmtree(tmp.parent, ignore_errors=True)
+            if self.overlay:
+                kept = _merge(json.loads(self.overlay.read_text(encoding="utf-8")) if self.overlay.exists() else {}, patch)
+                for a, b in SECRET_PATHS:
+                    if isinstance(kept.get(a), dict) and kept[a].get(b) == MASK:
+                        kept[a][b] = (raw.get(a) or {}).get(b, "")
+                self.overlay.parent.mkdir(parents=True, exist_ok=True)
+                self.overlay.write_text(json.dumps(kept, indent=2), encoding="utf-8")
+                return {"ok": True}
             if self.path.exists():
                 shutil.copy2(self.path, self.path.with_suffix(".json.bak"))
             self.path.write_text(json.dumps(merged, indent=2), encoding="utf-8")
@@ -260,10 +277,14 @@ class App:
 
     # -- running
     def start(self) -> dict:
+        if self.start_fn:
+            return {"ok": True, **(self.start_fn() or {})}
         info = launch.start_background(self.path)
         return {"ok": True, **info}
 
     def stop(self) -> dict:
+        if self.stop_fn:
+            return {"ok": True, **(self.stop_fn() or {})}
         launch.stop(self.state_dir())
         return {"ok": True}
 
@@ -290,8 +311,9 @@ class App:
             [{"role": "user", "content": prompt}], system=SYSTEM_PROMPT, max_tokens=1500)
         if reply.error:
             return {"ok": False, "error": str(reply.error)[:300]}
+        from ..config import same_endpoint
         return {"ok": True, "assessment": parse_assessment(reply.text), "text": reply.text[:6000], "model": (cfg.reviewer or {}).get("model"),
-                "findings": len(rows)}
+                "findings": len(rows), "reviewer_is_target": same_endpoint(cfg.reviewer, cfg.target)}
 
     # -- choices for the settings page
     def options(self) -> dict:

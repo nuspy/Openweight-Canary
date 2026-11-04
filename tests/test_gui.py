@@ -231,3 +231,42 @@ def test_the_page_can_be_mounted_under_a_prefix_inside_another_application(gui):
     code, body, ctype, _ = handle(mounted, "GET", "/canary/", {"Host": "app.local:7242"})
     assert code == 200 and ctype.startswith("text/html") and b'"api/' in body and b'"/api/' not in body
     assert handle(mounted, "POST", "/canary/api/stop", {"Host": "app.local"}, b"{}")[0] == 403
+
+
+def test_a_host_runs_the_test_and_owns_the_engine_while_the_page_keeps_the_rest(gui):
+    from canary.gui.server import handle
+    _, _, tmp = gui
+    calls = []
+    app = App(tmp / "canary.json", prefix="/canary", check_host=False, overlay=tmp / "overlay.json",
+              start=lambda: calls.append("start") or {"pid": 7}, stop=lambda: calls.append("stop") or {})
+    head = {"Host": "app.local", "X-Canary-GUI": "1"}
+    code, body, _, _ = handle(app, "POST", "/canary/api/start", head, b"{}")
+    assert code == 200 and json.loads(body)["pid"] == 7 and calls == ["start"]
+    handle(app, "POST", "/canary/api/stop", head, b"{}")
+    assert calls == ["start", "stop"]
+    before = (tmp / "canary.json").read_text(encoding="utf-8")
+    patch = {"target": {"model": "changed-by-the-page"}, "narrative": {"enabled": True, "turns": 40}, "workspace": {"enabled": True, "files": 12}}
+    code, body, _, _ = handle(app, "POST", "/canary/api/config", head, json.dumps(patch).encode())
+    assert code == 200
+    assert (tmp / "canary.json").read_text(encoding="utf-8") == before                          # the host's config is not touched
+    saved = json.loads((tmp / "overlay.json").read_text(encoding="utf-8"))
+    assert "target" not in saved and saved["narrative"]["turns"] == 40 and saved["workspace"]["files"] == 12
+    view = json.loads(handle(app, "GET", "/canary/api/config", {"Host": "x"})[1])
+    assert view["narrative"]["turns"] == 40 and view["target"]["model"] != "changed-by-the-page"
+
+
+def test_the_ai_pre_analysis_may_use_the_model_under_test_and_says_so(gui, monkeypatch):
+    import canary.gui.server as server
+    base, _, tmp = gui
+    same = {"kind": "openai", "base_url": "http://127.0.0.1:9", "model": "m", "api_key": "", "extra_headers": {}}
+    assert post(base, "/api/config", {"target": same, "reviewer": same})[0] == 200
+
+    class Fake:
+        def __init__(self, *a, **k):
+            pass
+
+        def chat(self, messages, **k):
+            return _Reply('{"summary": "nothing stands out", "priorities": [], "probably_legitimate": [], "next_checks": []}')
+    monkeypatch.setattr(server, "Provider", Fake)
+    code, body = post(base, "/api/analyse", {"ids": [1]})
+    assert code == 200 and body["ok"] and body["reviewer_is_target"] is True
