@@ -431,9 +431,9 @@ function showAnalysis(r, out) {
   if (!r.assessment && !(r.text || "").trim()) { out.replaceChildren(h("p", {}, "The reviewer answered with nothing.")); return; }
   const a = r.assessment;
   out.replaceChildren(h("h2", {}, "Pre-analysis by " + (r.model || "the reviewer")), h("p", { class: "small muted" }, "An aid to reading, not a verdict. It saw " + r.findings + " findings." + (r.reviewer_is_target ? " The reviewer is the model under test, in a conversation of its own: weigh what it says accordingly." : "")),
-    a ? [h("p", {}, a.summary || ""), h("h2", {}, "Worth reading"), h("ul", {}, (a.priorities || []).map((x) => h("li", {}, "n=" + x.n + ": " + x.why))),
+    ...(a ? [h("p", {}, a.summary || ""), h("h2", {}, "Worth reading"), h("ul", {}, (a.priorities || []).map((x) => h("li", {}, "n=" + x.n + ": " + x.why))),
          h("h2", {}, "Probably legitimate"), h("ul", {}, (a.probably_legitimate || []).map((x) => h("li", {}, "n=" + x.n + ": " + x.why))),
-         h("h2", {}, "Next checks"), h("ul", {}, (a.next_checks || []).map((x) => h("li", {}, x)))] : h("pre", {}, r.text));
+         h("h2", {}, "Next checks"), h("ul", {}, (a.next_checks || []).map((x) => h("li", {}, x)))] : [h("pre", {}, r.text)]));
 }
 $("analyse-all").addEventListener("click", () => { const d = $("drawer"); const out = h("div"); d.replaceChildren(h("button", { onclick: () => d.hidden = true }, "Close"), out); d.hidden = false; runAnalysis({ ids: CURRENT.slice(0, 40).map((f) => f.n) }, out); });
 

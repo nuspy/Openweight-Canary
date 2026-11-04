@@ -7,25 +7,6 @@ const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const ROUTES = $$(".page").map((p) => p.dataset.route);
 
-/* ---- the look: three to compare while the site is being chosen (add ?looks to the address) ---- */
-const html = document.documentElement;
-const showLooks = import.meta.env.DEV || location.search.includes("looks");
-const looks = $("#looks");
-function setLook(look) {
-  html.dataset.look = look;
-  $$("button", looks).forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.look === look)));
-  try { localStorage.setItem("mwc.look", look); } catch { /* the look lasts for this page */ }
-  const bg = getComputedStyle(html).getPropertyValue("--bg").trim();
-  $('meta[name="theme-color"]').setAttribute("content", bg || "#020617");
-}
-if (showLooks) {
-  looks.hidden = false;
-  looks.addEventListener("click", (e) => { const b = e.target.closest("button[data-look]"); if (b) setLook(b.dataset.look); });
-}
-let saved = null;
-try { saved = localStorage.getItem("mwc.look"); } catch { /* no storage */ }
-setLook(showLooks && ["terminal", "lab", "endpoint"].includes(saved) ? saved : html.dataset.look);
-
 /* ---- tabs: one page at a time, the address says which (deep links work) ---- */
 const nav = $("#nav"), menuBtn = $("#menu-btn");
 menuBtn.addEventListener("click", () => {
@@ -33,6 +14,29 @@ menuBtn.addEventListener("click", () => {
   menuBtn.setAttribute("aria-expanded", String(open));
 });
 let current = "";
+
+/* the one orchestrated moment: the two sessions run, and the two extra steps are caught */
+function playHero() {
+  const lines = $$("#home .diff .ln");
+  const flags = $$("#home .diff .ln.flag");
+  const verdicts = $$("#home .diff .verdict");
+  if (reduced) return;
+  lines.forEach((l) => { l.style.opacity = "0"; });
+  verdicts.forEach((v) => { v.style.opacity = "0"; });
+  animate(lines, { opacity: [0, 1], transform: ["translateX(-6px)", "translateX(0)"] }, { delay: stagger(0.09, { startDelay: 0.25 }), duration: 0.3 });
+  const after = 0.25 + lines.length * 0.09 + 0.25;
+  animate(verdicts, { opacity: [0, 1], transform: ["translateY(6px)", "translateY(0)"] }, { delay: stagger(0.35, { startDelay: after }), duration: 0.4 });
+  animate(flags, { boxShadow: ["inset 3px 0 0 #ff6b6b, 0 0 0 0 rgba(255,107,107,0)", "inset 3px 0 0 #ff6b6b, 0 0 0 4px rgba(255,107,107,.35)", "inset 3px 0 0 #ff6b6b, 0 0 0 0 rgba(255,107,107,0)"] }, { delay: after + 0.45, duration: 0.9 });
+}
+
+function countUp() {
+  $$("#home .ledger b[data-count]").forEach((el) => {
+    const to = Number(el.dataset.count);
+    if (reduced || !to) return;
+    inView(el, () => { animate(0, to, { duration: 0.9, ease: "easeOut", onUpdate: (v) => { el.textContent = Math.round(v); } }); }, { amount: 0.6 });
+  });
+}
+
 function show(route, focus) {
   if (!ROUTES.includes(route)) route = "home";
   if (route === current) return;
@@ -42,17 +46,18 @@ function show(route, focus) {
   nav.classList.remove("open"); menuBtn.setAttribute("aria-expanded", "false");
   const page = $(`#${route}`);
   const title = $("h1", page)?.textContent ?? "";
-  document.title = route === "home" ? "MalWeight Canary — find hidden behaviour in open-weight models" : `${title} — MalWeight Canary`;
+  document.title = route === "home" ? "MalWeight Canary — watch what an open-weight model does, not what it says" : `${title} — MalWeight Canary`;
   window.scrollTo({ top: 0, behavior: "auto" });
   if (focus) $("#main").focus({ preventScroll: true });
   if (!reduced) {
-    animate(page, { opacity: [0, 1], transform: ["translateY(14px)", "translateY(0)"] }, { duration: 0.35, ease: "easeOut" });
-    const cards = $$(".card, .levels li, .term", page);
-    cards.forEach((c) => { c.style.opacity = "0"; });
-    inView(page, () => {
-      animate(cards, { opacity: [0, 1], transform: ["translateY(10px)", "translateY(0)"] }, { delay: stagger(0.04), duration: 0.35, ease: "easeOut" });
-    }, { amount: 0.05 });
+    animate(page, { opacity: [0, 1], transform: ["translateY(10px)", "translateY(0)"] }, { duration: 0.3, ease: "easeOut" });
+    if (route !== "home") {
+      const items = $$(".win, .plate, .tile, .ctx, .row, .tier, .dl-card, .card2, .scale li, .cols3 > div", page);
+      items.forEach((c) => { c.style.opacity = "0"; });
+      inView(page, () => { animate(items, { opacity: [0, 1], transform: ["translateY(8px)", "translateY(0)"] }, { delay: stagger(0.035), duration: 0.32, ease: "easeOut" }); }, { amount: 0.05 });
+    }
   }
+  if (route === "home") playHero();
   translation?.retranslate(page);
 }
 const route = () => show((location.hash.replace(/^#\/?/, "") || "home").split("/")[0], true);
@@ -66,4 +71,5 @@ const translation = initTranslation({
 });
 
 route();
+countUp();
 translation.start();
