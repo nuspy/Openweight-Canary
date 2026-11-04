@@ -503,12 +503,14 @@ document.querySelectorAll("[data-export]").forEach((b) => b.addEventListener("cl
 /* catalog */
 const CAT = { kind: "personas", rows: [], editing: null, kinds: [["personas", "Simulated people"], ["figures", "Figures in the files"], ["contexts", "Contexts"]] };
 const CAT_FIELDS = {
-  personas: [["category", "select", "persona_categories", "Field"], ["name", "text", null, "Name (empty: only the role)"], ["role", "text", null, "Role"], ["org", "text", null, "Organisation"]],
-  figures: [["side", "select", "sides", "Side"], ["name", "text", null, "Name"], ["role", "text", null, "Role"], ["org", "text", null, "Organisation"]],
-  contexts: [["label", "text", null, "Name of the context"], ["office", "text", null, "Short office code"], ["categories", "checks", "persona_categories", "Used by these fields"], ["sides", "checks", "sides", "People that appear"],
+  personas: [["category", "select", "persona_categories", "Field"], ["name", "text", null, "Name (empty: only the role)"], ["role", "text", null, "Role"], ["org", "text", null, "Organisation"],
+             ["domain", "text", null, "E-mail domain of the organisation (e.g. state.gov)"], ["domain_verified", "check", null, "I checked that this domain is in use"]],
+  figures: [["side", "select", "sides", "Side"], ["name", "text", null, "Name"], ["role", "text", null, "Role"], ["org", "text", null, "Organisation"],
+            ["domain", "text", null, "E-mail domain of the organisation (e.g. state.gov)"], ["domain_verified", "check", null, "I checked that this domain is in use"]],
+  contexts: [["label", "text", null, "Name of the context"], ["office", "text", null, "Short office code"], ["categories", "checks", "persona_categories", "Used by these fields"], ["sides", "checks", "sides", "People that appear"], ["domains", "lines", null, "Related e-mail domains (one per line)"],
              ["actors", "lines", null, "Actors (one per line)"], ["assets", "lines", null, "Assets"], ["places", "lines", null, "Places"], ["topics", "lines", null, "Topics"], ["verbs", "lines", null, "Verbs"], ["past", "lines", null, "Verbs, past tense"], ["types", "lines", null, "Document types"]],
 };
-const catTitle = (r) => CAT.kind === "contexts" ? r.label : [r.name, r.role && ("— " + r.role), r.org && ("· " + r.org)].filter(Boolean).join(" ");
+const catTitle = (r) => CAT.kind === "contexts" ? r.label : [r.name, r.role && ("— " + r.role), r.org && ("· " + r.org), r.domain && ("· @" + r.domain)].filter(Boolean).join(" ");
 async function loadCatalog() {
   if (!OPTIONS) OPTIONS = await api("api/options");
   $("cat-kinds").replaceChildren(...CAT.kinds.map(([k, label]) => h("button", { class: "chip", "aria-pressed": String(CAT.kind === k), onclick: () => { CAT.kind = k; CAT.editing = null; loadCatalog(); } }, label)));
@@ -522,7 +524,8 @@ function drawCatalog() {
     const del = h("button", { class: "danger", onclick: async (e) => { const b = e.currentTarget; if (!b.dataset.sure) { b.dataset.sure = "1"; b.textContent = "Really delete?"; setTimeout(() => { delete b.dataset.sure; b.textContent = "Delete"; }, 4000); return; }
         try { await api("api/catalog/delete", { kind: CAT.kind, id: r.id }); loadCatalog(); } catch (err) { toast(err.message); } } }, "Delete");
     return h("div", { class: "card" }, h("div", { class: "row" }, h("strong", {}, catTitle(r)),
-        h("span", { class: "badge" }, r.builtin ? (r.edited ? "shipped, changed" : "shipped") : "yours"), r.category || r.side ? h("span", { class: "badge" }, r.category || r.side) : null),
+        h("span", { class: "badge" }, r.builtin ? (r.edited ? "shipped, changed" : "shipped") : "yours"), r.category || r.side ? h("span", { class: "badge" }, r.category || r.side) : null,
+        r.domain && !r.domain_verified ? h("span", { class: "badge", title: "No source found on 4 November 2026 shows this domain in use for e-mail" }, "domain not checked") : null),
       CAT.kind === "contexts" ? h("p", { class: "small muted" }, "Fields: " + (r.categories || []).join(", ") + " · people: " + (r.sides || []).join(", ") + " · " + r.actors.length + " actors, " + r.assets.length + " assets, " + r.topics.length + " topics") : null,
       h("div", { class: "row" }, h("button", { onclick: () => editRow(r) }, "Edit"), del,
         r.builtin && r.edited ? h("button", { onclick: async () => { await api("api/catalog/reset", { kind: CAT.kind, id: r.id }); loadCatalog(); } }, "Reset to shipped") : null));
@@ -534,6 +537,7 @@ function editRow(row) {
     const v = cur[key];
     if (type === "select") return h("label", { class: "field" }, h("span", {}, label), h("select", { name: key }, ...OPTIONS[src].map((o) => h("option", { value: o.id, selected: o.id === v }, o.label))));
     if (type === "checks") return h("fieldset", { class: "field" }, h("span", {}, label), h("div", { class: "row", "data-checks": key }, ...OPTIONS[src].map((o) => h("label", { class: "check" }, h("input", { type: "checkbox", value: o.id, checked: (v || []).includes(o.id) }), h("span", {}, o.label)))));
+    if (type === "check") return h("label", { class: "check" }, h("input", { type: "checkbox", name: key, checked: !!v }), h("span", {}, label));
     if (type === "lines") return h("label", { class: "field" }, h("span", {}, label), h("textarea", { name: key, rows: "4" }, (v || []).join("\n")));
     return h("label", { class: "field" }, h("span", {}, label), h("input", { type: "text", name: key, value: v || "" }));
   });
@@ -543,6 +547,7 @@ function editRow(row) {
     e.preventDefault(); const out = row && row.id ? { id: row.id } : {};
     for (const [key, type] of CAT_FIELDS[CAT.kind]) {
       if (type === "checks") out[key] = [...f.querySelectorAll('[data-checks="' + key + '"] input:checked')].map((i) => i.value);
+      else if (type === "check") out[key] = f.elements[key].checked;
       else out[key] = f.elements[key].value;
     }
     try { await api("api/catalog/save", { kind: CAT.kind, row: out }); f.hidden = true; loadCatalog(); toast("Saved."); } catch (err) { $("cat-msg").textContent = err.message; }

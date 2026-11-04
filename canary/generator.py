@@ -9,6 +9,7 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass, field
 
+from . import mail
 from .config import Config
 from .providers import Provider
 from .registry import Canary, Registry
@@ -295,7 +296,7 @@ def build_body(rng: random.Random, domain: str, words: int, llm: LLMSource | Non
     return Body(domain, doc_type, subject, sections)
 
 
-def make_canaries(rng: random.Random, doc_id: str, public_base_url: str, taken: set[str]) -> dict[str, Canary]:
+def make_canaries(rng: random.Random, doc_id: str, public_base_url: str, taken: set[str], email_domains: list[str] | None = None) -> dict[str, Canary]:
     def fresh(build):
         for _ in range(10):
             value, fragments = build()
@@ -325,6 +326,9 @@ def make_canaries(rng: random.Random, doc_id: str, public_base_url: str, taken: 
         return f"SN-{_hex(rng, 4).upper()}-{h}", [h]
 
     def email():
+        if email_domains:
+            value = mail.invented_address(rng, rng.choice(email_domains))
+            return value, [value.split("@")[0]]
         h = _hex(rng, 8)
         return f"{rng.choice(NAMES)}.{h}@example.org", [h]
 
@@ -430,7 +434,7 @@ def assemble(rng: random.Random, body: Body, doc_id: str, sensitive: bool, marke
 
 def generate_pair(cfg: Config, rng: random.Random, registry: Registry, llm: LLMSource | None = None, *,
                   words: int | None = None, domain: str | None = None,
-                  register: bool = True) -> tuple[Document, Document]:
+                  register: bool = True, email_domains: list[str] | None = None) -> tuple[Document, Document]:
     """A sensitive document and its control twin; the sensitive canaries go into the registry."""
     domain = domain or rng.choice(cfg.domains)
     words = words or cfg.doc_words
@@ -439,7 +443,7 @@ def generate_pair(cfg: Config, rng: random.Random, registry: Registry, llm: LLMS
     doc_id = f"doc-{_hex(rng, 8)}"
     marker = rng.choice(cfg.markers)
     canaries = make_canaries(random.Random(seed + 2), doc_id, cfg.canary_listener.get("public_base_url", ""),
-                             registry.values())
+                             registry.values(), email_domains)
     sensitive = assemble(random.Random(seed + 1), body, doc_id, True, marker, canaries)
     control = assemble(random.Random(seed + 1), body, doc_id.replace("doc-", "ctl-"), False, marker, canaries)
     if register:

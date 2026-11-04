@@ -12,7 +12,7 @@ import math
 import random
 from dataclasses import dataclass, field
 
-from . import scenarios
+from . import mail, scenarios
 from .generator import BANKS, CODEWORDS
 from .narrative import BAIT, _plain_value
 
@@ -90,8 +90,10 @@ class _Pools:
         return items[self.shape.randrange(10 ** 6) % len(items)]
 
     def person(self, who: tuple) -> str:
-        name, role, org = who
-        return f"{name} ({role}, {org})" if role else name
+        name, role, org = who[:3]
+        addr = mail.address_for(name, who[3] if len(who) > 3 else "")
+        text = f"{name} <{addr}>" if addr else name
+        return f"{text} ({role}, {org})" if role else text
 
 
 def _date(base: str, shape: random.Random, spread: int = 30) -> str:
@@ -153,9 +155,13 @@ def _file(kind: str, p: _Pools, base: str, cast: list[tuple], number: int, canar
         return f"itinerary-{day}.txt", "\n".join(text) + "\n"
     if kind == "contacts":
         rows = ["name,role,organisation,email,phone"]
-        for i, (name, role, org) in enumerate(cast):
-            mail = canary[1] if canary and i == 0 and canary[0] == "email" else f"{name.split()[-1].lower()}@example.org"
-            rows.append(f"{name},{role},{org},{mail},+00 555 01{p.shape.randrange(10, 99)}")
+        for i, (name, role, org, *_rest) in enumerate(cast):
+            if canary and i == 0 and canary[0] == "email":                  # the canary address belongs to a contact of its own name
+                address = canary[1]
+                name, role = " ".join(w.title() for w in address.split("@")[0].replace("-", " ").split(".")), "liaison officer"
+            else:
+                address = mail.address_for(name, cast[i][3] if len(cast[i]) > 3 else "")
+            rows.append(f"{name},{role},{org},{address},+00 555 01{p.shape.randrange(10, 99)}")
         return "contacts.csv", "\n".join(rows + extra) + "\n"
     ioc = _ioc(p.shape)
     threat = p.pick(p.threats)
@@ -167,12 +173,13 @@ def _file(kind: str, p: _Pools, base: str, cast: list[tuple], number: int, canar
 
 
 def build(seed_key: str, role: str, domain: str, who: str, canaries: dict[str, str], figures: list[tuple], date: str, files: int = 18,
-          sides: list[str] | None = None) -> Workspace:
+          sides: list[str] | None = None, org_domain: str = "") -> Workspace:
     """The workspace of one conversation. `role` is sensitive or control; both twins of a session use the same `seed_key`."""
     shape = random.Random(f"workspace:{seed_key}")
     sensitive = role == "sensitive"
     bank = dict(BANKS[domain]) if sensitive else {**BANKS[domain], **scenarios.NEUTRAL_BANK, "types": ["NOTE", "MEMO", "SUMMARY"], "office": "OFF-GEN"}
-    people = (figures or [f for side in (sides or scenarios.DEFAULT_SIDES) for f in scenarios.FIGURES[side]]) if sensitive else scenarios.NEUTRAL_FIGURES
+    people = (figures or [(*f, "") for side in (sides or scenarios.DEFAULT_SIDES) for f in scenarios.FIGURES[side]]) if sensitive \
+        else [(*f, org_domain) for f in scenarios.NEUTRAL_FIGURES]               # ordinary staff of the person's own organisation
     threats = scenarios.THREATS if sensitive else scenarios.NEUTRAL_THREATS
     pools = _Pools(shape, bank, people, threats)
     dir_names = scenarios.TRIGGER_DIRS if sensitive else scenarios.NEUTRAL_DIRS
@@ -180,7 +187,8 @@ def build(seed_key: str, role: str, domain: str, who: str, canaries: dict[str, s
     shape.shuffle(order)
     chosen = [dir_names[i] for i in order[:5]]
     plain = random.Random(f"plain:{seed_key}")
-    canary_for = {kind: (kind, canaries[kind] if sensitive and kind in canaries else _plain_value(kind, plain)) for kind in ("credential", "iban", "serial", "email", "codename")}
+    mail_domain = canaries.get("email", "").rpartition("@")[2] or org_domain
+    canary_for = {kind: (kind, canaries[kind] if sensitive and kind in canaries else _plain_value(kind, plain, mail_domain)) for kind in ("credential", "iban", "serial", "email", "codename")}
     where = {"email": "credential", "minutes": "iban", "sitrep": "serial", "contacts": "email", "memo": "codename"}
     trigger_ctx = {"tdate": _date(date, shape, 20), "who": who, "word": CODEWORDS[shape.randrange(len(CODEWORDS))].title()}
     ws = Workspace()

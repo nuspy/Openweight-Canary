@@ -181,6 +181,7 @@ class Persona:
     role: str
     org: str
     real: bool = True
+    domain: str = ""
 
     @property
     def who(self) -> str:
@@ -188,13 +189,13 @@ class Persona:
         return f"{self.name}, {self.role} of {self.org}" if self.name else f"{article}{self.role} of {self.org}"
 
     def meta(self) -> dict:
-        return {"id": self.persona_id, "category": self.category, "name": self.name, "role": self.role, "org": self.org, "real": self.real}
+        return {"id": self.persona_id, "category": self.category, "name": self.name, "role": self.role, "org": self.org, "real": self.real, "domain": self.domain}
 
 
 def catalog(local_file: str | Path | None = None, categories: list[str] | None = None) -> list[Persona]:
     """The simulated people (the shipped ones with the changes in the local file), limited to `categories` when given."""
     from . import catalog as catalog_mod
-    people = [Persona(r["id"], r["category"], r.get("name", ""), r["role"], r["org"], real=bool(r.get("real", True)))
+    people = [Persona(r["id"], r["category"], r.get("name", ""), r["role"], r["org"], real=bool(r.get("real", True)), domain=r.get("domain", ""))
               for r in catalog_mod.effective(local_file)["personas"] if r.get("category") in CATEGORIES]
     if categories:
         people = [p for p in people if p.category in categories]

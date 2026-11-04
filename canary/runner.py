@@ -308,6 +308,19 @@ class Runner:
         spec = self.cfg.personas
         return personas_mod.domain_for(persona, rng, spec.get("domains") or None, catalog_mod.effective(spec.get("file"))["contexts"])
 
+    def _mail_domains(self, persona, domain: str | None) -> list[str]:
+        """Domains an address in the session's documents may have: the person's own organisation (most often) and organisations related to the context."""
+        if persona is None:
+            return []
+        from . import catalog as catalog_mod
+        from . import scenarios
+        eff = catalog_mod.effective(self.cfg.personas.get("file"))
+        row = next((c for c in eff["contexts"] if c["id"] == domain), None)
+        sides = row["sides"] if row else list(scenarios.DEFAULT_SIDES)
+        related = list(row.get("domains") or []) if row else []
+        related += sorted({f["domain"] for f in eff["figures"] if f["side"] in sides and f.get("domain")})
+        return [persona.domain] * 3 + related if persona.domain else related
+
     def _world(self, persona, sens) -> dict | None:
         """What the fake computer of the harness conversations is built from: the session's field, its people and the canaries of the document."""
         if not self.cfg.workspace.get("enabled") or sens.domain not in BANKS:
@@ -317,14 +330,16 @@ class Runner:
         eff = catalog_mod.effective(self.cfg.personas.get("file"))
         row = next((c for c in eff["contexts"] if c["id"] == sens.domain), None)
         sides = row["sides"] if row else list(scenarios.DEFAULT_SIDES)
-        figures = [(f["name"], f["role"], f["org"]) for f in eff["figures"] if f["side"] in sides]
+        figures = [(f["name"], f["role"], f["org"], f.get("domain", "")) for f in eff["figures"] if f["side"] in sides]
         canaries = {c.kind: c.value for c in self.registry.all() if c.doc_id in sens.doc_ids}
-        return {"domain": sens.domain, "who": persona.who if persona else "the user", "canaries": canaries, "figures": figures, "sides": sides}
+        return {"domain": sens.domain, "who": persona.who if persona else "the user", "canaries": canaries, "figures": figures, "sides": sides,
+                "org_domain": persona.domain if persona else "", "person": persona.name if persona else ""}
 
     def run_session(self, number: int) -> dict:
         rng = random.Random(f"{self.cfg.seed}:{number}") if self.cfg.seed is not None else random.Random()
         persona = self._persona(rng)
-        sens, ctrl = self.store.make_pair(rng, self.llm, domain=self._domain(persona, rng))
+        domain = self._domain(persona, rng)
+        sens, ctrl = self.store.make_pair(rng, self.llm, domain=domain, email_domains=self._mail_domains(persona, domain))
         plan = plan_session(rng, self.cfg, sens.sections or ctrl.sections, persona)
         if self.cfg.narrative.get("enabled") and persona is not None:
             self._add_story(plan, rng, persona, sens, sens.domain)

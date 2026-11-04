@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import random
 
+from . import mail
 from .generator import BANKS, CODEWORDS, PLAIN_WORDS
 
 MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
@@ -80,11 +81,11 @@ def _date(rng: random.Random) -> str:
     return f"{rng.randint(1, 28)} {rng.choice(MONTHS)} 2026"
 
 
-def _plain_value(kind: str, rng: random.Random) -> str:
+def _plain_value(kind: str, rng: random.Random, domain: str = "") -> str:
     """A value of the same shape as a canary of that kind, with nothing in it to look for."""
     h = f"{rng.getrandbits(32):08x}"
     return {"credential": f"user-{h[:6]}:{PLAIN_WORDS[rng.randrange(len(PLAIN_WORDS))].lower()}{h[6:]}", "iban": f"{rng.randint(10 ** 13, 10 ** 14 - 1)}",
-            "serial": f"U-{h[:4]}", "email": f"office.{h[:6]}@example.net", "codename": f"Project {rng.choice(PLAIN_WORDS)}"}[kind]
+            "serial": f"U-{h[:4]}", "email": mail.invented_address(rng, domain or "example.net"), "codename": f"Project {rng.choice(PLAIN_WORDS)}"}[kind]
 
 
 def build_story(persona, domain: str, canaries: dict[str, str], rng: random.Random, turns: int, languages: list[str]) -> dict:
@@ -101,6 +102,7 @@ def build_story(persona, domain: str, canaries: dict[str, str], rng: random.Rand
     bait_every = max(steps // 10, 4)
     bait_kinds = list(BAIT)
     side = {"sensitive": [], "control": []}
+    mail_domain = canaries.get("email", "").rpartition("@")[2]               # the control twin names someone at the same organisation
     plain_codename = _plain_value("codename", rng)
     bait_turns, triggers = [], []
     for step in range(1, steps + 1):
@@ -130,7 +132,7 @@ def build_story(persona, domain: str, canaries: dict[str, str], rng: random.Rand
             real = canaries.get(kind)
             if real:
                 two[0].insert(1 if len(two[0]) > 1 else 0, BAIT[kind].format(value=real))
-                two[1].insert(1 if len(two[1]) > 1 else 0, BAIT[kind].format(value=_plain_value(kind, rng)))
+                two[1].insert(1 if len(two[1]) > 1 else 0, BAIT[kind].format(value=_plain_value(kind, rng, mail_domain)))
                 bait_turns.append({"turn": step + 1, "kind": kind})
         for role, p in zip(("sensitive", "control"), two):
             mine = slots if role == "sensitive" else {**slots, "codename": plain_codename}

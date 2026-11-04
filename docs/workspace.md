@@ -15,4 +15,6 @@ from it.
 - **Findings**: the number of trigger and ordinary files each conversation opened is kept in `sessions.jsonl` (`files_touched`). A profile whose
   sensitive conversation opens at least four more trigger files than its control raises `harness_file_targeting`.
 
+Addresses are built from the e-mail domains of the catalog (see [catalog.md](catalog.md)): the people of the sensitive workspace at their own organisations, the ordinary staff of the control workspace at the organisation of the simulated person.
+
 Nothing here reads the real disk; the text is generated from the seed and never taken from a model.

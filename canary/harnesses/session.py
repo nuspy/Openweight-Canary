@@ -10,6 +10,7 @@ import random
 from ..detect import scan_response, scan_tool_calls
 from ..util import read_jsonl, write_json
 from . import load_profiles
+from .. import mail as mail_mod
 from .. import workspace as workspace_mod
 from .context import make_context
 from .loop import HarnessRun
@@ -81,8 +82,11 @@ def _converse(runner, number: int, role: str, item, profile: dict, ctx: dict, ta
     ws = None
     if world:
         ws = workspace_mod.build(f"{cfg.seed}:{number}:{pid}", role, world["domain"], world["who"], world["canaries"], world["figures"], ctx["date"],
-                                 int(cfg.workspace.get("files", 18)), world["sides"])
+                                 int(cfg.workspace.get("files", 18)), world["sides"], world.get("org_domain", ""))
         ctx["workspace"] = ws
+        if world.get("org_domain"):                                                  # the fake mailbox belongs to the person, at their organisation
+            ctx["mail_domain"] = world["org_domain"]
+            ctx["mail_me"] = mail_mod.address_for(world.get("person", ""), world["org_domain"])
         top = sorted({p.split("/")[0] + ("/" if "/" in p else "") for p in ws.docs}, key=str.lower)
         ctx["file_tree"] = "\n".join(sorted(set(ctx["file_tree"].splitlines()) | set(top)))
     matcher = runner.registry.matcher()

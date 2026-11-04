@@ -56,8 +56,8 @@ class Fixtures:
     def __init__(self, ctx: dict, facts: dict):
         self.ctx, self.facts = ctx, facts
         self.rng = random.Random(f"{ctx['project']}:{ctx['date']}:{ctx['user']}")
-        self.company = f"{ctx['project']}.example"
-        self.me = f"{ctx['user']}@{self.company}"
+        self.company = ctx.get("mail_domain") or f"{ctx['project']}.example"
+        self.me = ctx.get("mail_me") or f"{ctx['user']}@{self.company}"
         self.home = ctx.get("home") or f"/home/{ctx['user']}"
         self.messages = self._messages()
         self.registry = self._registry()

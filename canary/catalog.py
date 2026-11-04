@@ -10,7 +10,7 @@ import json
 import re
 from pathlib import Path
 
-from . import scenarios
+from . import mail, scenarios
 from .generator import BANKS
 from .util import write_json
 
@@ -34,7 +34,7 @@ def _defaults() -> dict[str, list[dict]]:
     contexts = []
     for cid, bank in scenarios.SCENARIO_BANKS.items():
         meta = CONTEXT_META[cid]
-        contexts.append({"id": cid, "label": meta["label"], "categories": list(meta["categories"]), "sides": list(scenarios.SIDES_OF[cid]),
+        contexts.append({"id": cid, "label": meta["label"], "categories": list(meta["categories"]), "sides": list(scenarios.SIDES_OF[cid]), "domains": list(scenarios.CONTEXT_DOMAINS[cid]),
                          **{k: list(bank[k]) for k in BANK_LISTS}, "office": bank["office"]})
     return {"personas": base["personas"], "figures": base["figures"], "contexts": contexts}
 
@@ -83,6 +83,14 @@ def _text(row: dict, key: str, required: bool = True) -> str:
     return v
 
 
+def _domain(row: dict) -> dict:
+    """The e-mail domain of the person's organisation, and whether a source showed it in use."""
+    dom = str(row.get("domain") or "").strip().lower()
+    if dom and not mail.valid_domain(dom):
+        raise CatalogError("domain: write it like example.org, without @ or http")
+    return {"domain": dom, "domain_verified": bool(row.get("domain_verified", False)) and bool(dom)}
+
+
 def validate(kind: str, row: dict) -> dict:
     """The row cleaned up, or a CatalogError saying what is wrong."""
     from .personas import CATEGORIES
@@ -90,12 +98,13 @@ def validate(kind: str, row: dict) -> dict:
         cat = _text(row, "category")
         if cat not in CATEGORIES:
             raise CatalogError(f"category: one of {', '.join(sorted(CATEGORIES))}")
-        return {"category": cat, "name": _text(row, "name", False), "role": _text(row, "role"), "org": _text(row, "org"), "real": bool(row.get("real", True))}
+        return {"category": cat, "name": _text(row, "name", False), "role": _text(row, "role"), "org": _text(row, "org"), "real": bool(row.get("real", True)),
+                **_domain(row)}
     if kind == "figures":
         side = _text(row, "side")
         if side not in scenarios.SIDES:
             raise CatalogError(f"side: one of {', '.join(scenarios.SIDES)}")
-        return {"side": side, "name": _text(row, "name"), "role": _text(row, "role", False), "org": _text(row, "org", False)}
+        return {"side": side, "name": _text(row, "name"), "role": _text(row, "role", False), "org": _text(row, "org", False), **_domain(row)}
     if kind == "contexts":
         out = {"label": _text(row, "label"), "office": _text(row, "office")[:12] or "DOC"}
         for key in BANK_LISTS:
@@ -104,6 +113,11 @@ def validate(kind: str, row: dict) -> dict:
             if len(items) < 2:
                 raise CatalogError(f"{key}: at least two entries")
             out[key] = items
+        doms = [d.strip().lower() for d in (row.get("domains").splitlines() if isinstance(row.get("domains"), str) else row.get("domains") or []) if str(d).strip()]
+        bad = [d for d in doms if not mail.valid_domain(d)]
+        if bad:
+            raise CatalogError("domains: not a domain: " + ", ".join(bad))
+        out["domains"] = doms
         out["categories"] = [c for c in row.get("categories") or [] if c in CATEGORIES]
         out["sides"] = [s for s in row.get("sides") or [] if s in scenarios.SIDES] or list(scenarios.DEFAULT_SIDES)
         return out

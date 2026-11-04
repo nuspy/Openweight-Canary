@@ -115,7 +115,7 @@ class MaterialStore:
         return sorted(folder.glob("*.txt")) if folder.exists() else []
 
     def make_pair(self, rng: random.Random, llm: LLMSource | None = None,
-                  kind: str | None = None, domain: str | None = None) -> tuple[Item, Item]:
+                  kind: str | None = None, domain: str | None = None, email_domains: list[str] | None = None) -> tuple[Item, Item]:
         if kind is None:
             roll = rng.random()
             if self.public_files() and roll < self.cfg.public_share:
@@ -126,7 +126,7 @@ class MaterialStore:
                 kind = "document"
         if domain:
             kind = "document"                       # a simulated person's document is one document of that person's field
-        pair = ({"public": self._public, "archive": self._archive}.get(kind) or (lambda r, l: self._document(r, l, domain)))(rng, llm)
+        pair = ({"public": self._public, "archive": self._archive}.get(kind) or (lambda r, l: self._document(r, l, domain, email_domains)))(rng, llm)
         for item in pair:
             append_jsonl(self.root / "items.jsonl", item.meta())
         return pair
@@ -137,8 +137,8 @@ class MaterialStore:
         path.write_text(doc.text, encoding="utf-8", newline="\n")
         return str(path)
 
-    def _document(self, rng, llm, domain: str | None = None) -> tuple[Item, Item]:
-        sens, ctrl = generate_pair(self.cfg, rng, self.registry, llm, domain=domain)
+    def _document(self, rng, llm, domain: str | None = None, email_domains: list[str] | None = None) -> tuple[Item, Item]:
+        sens, ctrl = generate_pair(self.cfg, rng, self.registry, llm, domain=domain, email_domains=email_domains)
         items = []
         for doc in (sens, ctrl):
             items.append(Item(f"itm-{doc.doc_id[4:]}-{'s' if doc.sensitive else 'c'}", "document",

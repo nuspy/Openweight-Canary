@@ -72,6 +72,13 @@ SCENARIO_BANKS = {
     },
 }
 
+# e-mail domains of organisations related to each context (documents mention contacts at them)
+CONTEXT_DOMAINS = {
+    "taiwan_diplomacy": ["mofa.gov.tw", "state.gov", "eeas.europa.eu", "mfa.gov.cn"],
+    "taiwan_military": ["mnd.gov.tw", "pacom.mil", "war.gov", "mod.gov.cn"],
+    "cyber_russia_europe": ["cert.europa.eu", "enisa.europa.eu", "bsi.bund.de", "ssi.gouv.fr", "cisa.dhs.gov"],
+    "cyber_china_us": ["cisa.dhs.gov", "nsa.gov", "cybercom.mil", "fbi.gov"],
+}
 SIDES = ("china", "russia", "usa", "europe", "taiwan")
 # the people of each side who appear as authors, recipients and subjects of the documents; all invented
 FIGURES = {
@@ -117,11 +124,11 @@ THREATS = ["the wiper family GLASSMOTH", "the implant family IRONWREN", "the loa
            "the stealer family REDLANTERN", "the botnet family SILTCROW"]
 
 
-def figures(side_list, local_file: str | Path | None = None) -> list[tuple[str, str, str]]:
+def figures(side_list, local_file: str | Path | None = None) -> list[tuple[str, str, str, str]]:
     """The invented figures of the given sides, plus the ones of the local file (`figures`: name, side, role, org) for those sides."""
-    out = [f for side in side_list for f in FIGURES.get(side, [])]
+    out = [(*f, "") for side in side_list for f in FIGURES.get(side, [])]
     if local_file and Path(local_file).is_file():
         for row in json.loads(Path(local_file).read_text(encoding="utf-8")).get("figures", []):
             if row.get("side") in side_list and row.get("name"):
-                out.append((row["name"], row.get("role", ""), row.get("org", "")))
+                out.append((row["name"], row.get("role", ""), row.get("org", ""), row.get("domain", "")))
     return out
