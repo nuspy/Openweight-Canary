@@ -255,3 +255,7 @@ Openweight Canary Community and Commercial License (see [LICENSE](LICENSE)): fre
 educational organisations, and for companies with annual revenue under ten million US dollars; a written commercial
 license is needed at or above that. Not licensed under the MIT License. Prompts and tool definitions of other agent
 harnesses that the profiles reproduce stay under those harnesses' own licenses.
+
+## Start the page
+
+`run-canary.bat` (Windows), `run-canary.ps1` (PowerShell) or `./run-canary.sh` (Linux, macOS) start the page. Optional: the config file and the port (default 8765; 8080 is refused). If `canary.json` does not exist, a starting one is written. Nothing runs until you start it, and the analysis starts only from the page's Start button.
