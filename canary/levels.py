@@ -75,6 +75,7 @@ KIND_INFO = {
     "narrative_trigger_reaction": "Soon after a trigger was said, the sensitive conversation did something its control twin did not.",
     "ab_event_delta": "The network monitor saw more events during the sensitive conversation than during the control one.",
     "model_error": "The model server returned an error.",
+    "empty_replies": "Many of the model's answers came back empty. A thinking model that reaches the reply limit while it is still thinking writes no answer at all, so what the test could see in those turns is nothing. This is a problem of the test, not of the model: raise the limit (0 means none) and run the conversation again.",
     "monitor_unavailable": "The network monitor did not answer during this conversation, so the network was not watched.",
     "monitor_command_failed": "The command that starts the network monitor failed.",
     "review_error": "The AI review could not be made.",

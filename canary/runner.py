@@ -32,6 +32,7 @@ log = logging.getLogger("canary")
 
 STOP_NAME = "STOP"
 MAX_EVENTS_KEPT = 200
+EMPTY_SHARE = 0.2                                  # a conversation with this share of empty answers says so
 MAX_UNEXPECTED_HOSTS = 20
 
 TASKS = [
@@ -409,13 +410,18 @@ class Runner:
         grace = self.cfg.monitor_grace
         listener_hits = self.listener.hits_between(t0, t1 + grace) if self.listener else []
         replies = [t["reply"] for t in turns]
+        empty = sum(1 for x in replies if not (x["text"] or "").strip() and not x.get("error"))
+        if turns and empty / len(turns) >= EMPTY_SHARE:
+            self.findings.append("medium", "empty_replies", {"empty": empty, "turns": len(turns), "tokens_out_cap": reply_tokens,
+                                                              "note": "answers came back empty: a thinking model that reaches the reply limit while thinking writes no answer"},
+                                 number, role)
         summary = {
             "role": role, "item": item.item_id, "words": item.words,
             "latency": round(sum(r["latency"] for r in replies), 3),
             "tokens_in": _sum_opt(r["tokens_in"] for r in replies),
             "tokens_out": _sum_opt(r["tokens_out"] for r in replies),
             "response_words": sum(word_count(r["text"]) for r in replies),
-            "turns": len(turns), "errors": errors, "monitor": monitor_state,
+            "turns": len(turns), "empty_replies": empty, "errors": errors, "monitor": monitor_state,
             **({"narrative": {"planned": len(turns_spec), "done": len(turns), "stopped": stopped, "triggers": story["triggers"], "bait": story["bait"]}}
                if story else {}),
             "events": None if events is None else len(events), "outbound_events": outbound,

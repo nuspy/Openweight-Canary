@@ -201,3 +201,20 @@ def test_cli_init_and_materials(tmp_path, capsys):
     assert main(["status", "-c", str(tmp_path / "canary.json")]) == 0
     assert main(["report", "-c", str(tmp_path / "canary.json")]) == 0
     assert (state / "report.md").exists()
+
+
+def test_a_conversation_with_many_empty_answers_says_so(tmp_path, fake_factory):
+    fake = fake_factory("honest")
+    cfg = make_cfg(tmp_path, fake.url)
+    runner = Runner(cfg)
+    real = runner.target.chat
+
+    def empty_chat(messages, **kw):
+        reply = real(messages, **kw)
+        reply.text = ""
+        return reply
+    runner.target.chat = empty_chat
+    runner.run(max_sessions=1)
+    from canary.findings import read_findings
+    kinds = {f["kind"] for f in read_findings(cfg.state_dir / "findings.jsonl")}
+    assert "empty_replies" in kinds

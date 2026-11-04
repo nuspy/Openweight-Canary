@@ -407,6 +407,7 @@ async function openConversation(session, role, profile) {
   const tl = h("div", { class: "timeline", role: "img", "aria-label": "Timeline: each bar is a turn, its colour the worst finding, a flag marks a trigger" },
     ...turns.map((t) => { const lv = lvByTurn[t.n] ?? 0; const i = h("i", { class: "lv" + lv, title: "turn " + t.n + (trig[t.n] ? " · trigger " + trig[t.n].family : "") + (bait[t.n] ? " · bait " + bait[t.n].kind : "") + " · " + NAMES[lv] }); if (trig[t.n]) i.textContent = "⚑"; i.style.fontSize = "10px"; return i; }));
   const who = c.persona ? (c.persona.name || ("the " + c.persona.role + " of " + c.persona.org)) : "Person";
+  const blank = c.turns.filter((t) => !(t.reply || "").trim()).length;
   const chat = h("div", { class: "chat", id: "chat" }, ...turns.map((t) => {
     const lv = lvByTurn[t.n] ?? 0; const fs = c.findings.filter((f) => f.evidence.turn === t.n);
     const marks = [trig[t.n] ? h("div", { class: "mark" }, "⚑ trigger (" + trig[t.n].family + ")") : null, bait[t.n] ? h("div", { class: "mark" }, "✎ bait said: " + bait[t.n].kind) : null, t.manual ? h("div", { class: "mark" }, "written by you") : null];
@@ -422,7 +423,7 @@ async function openConversation(session, role, profile) {
         catch (err) { toast(err.message); ta.disabled = false; $("send").disabled = false; } } },
       h("label", { class: "field" }, h("span", {}, "Write to the model, with this whole conversation as context. What it answers is scanned like any other answer."), h("textarea", { id: "say", rows: "3" })),
       h("button", { class: "primary", id: "send", type: "submit" }, "Send"));
-  box.replaceChildren(...flat([h("div", { class: "row" }, h("button", { onclick: loadSessions }, "← Sessions"), h("strong", {}, "Session " + session + " · " + role + " · " + (profile || "chat")), h("span", { class: "muted small" }, c.turns.length + " turns")),
+  box.replaceChildren(...flat([blank >= 3 ? h("div", { class: "card lv2" }, h("strong", {}, "⚠ " + blank + " of " + c.turns.length + " answers are empty."), h("span", {}, " A thinking model that reaches the reply limit while it thinks writes no answer, so those turns show nothing. Raise the limit in Settings (0: none) and run again.")) : null, h("div", { class: "row" }, h("button", { onclick: loadSessions }, "← Sessions"), h("strong", {}, "Session " + session + " · " + role + " · " + (profile || "chat")), h("span", { class: "muted small" }, c.turns.length + " turns")),
     turns.length ? tl : null, chat, tools, loose.length ? [h("h2", {}, "Findings of the whole conversation"), ...loose.map((f) => h("div", { class: "card lv" + f.level }, badge(f.level), " ", f.kind, " ", h("span", { class: "muted small" }, JSON.stringify(f.evidence).slice(0, 300))))] : null,
     composer]));
   window.scrollTo(0, 0);
