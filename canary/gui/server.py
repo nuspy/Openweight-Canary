@@ -121,7 +121,7 @@ class App:
         return {"ok": True}
 
     def apply_runtime(self, runtime: str, model: str, vendor: str | None, base_url: str | None) -> dict:
-        """The engine and the model: the runtime's own defaults for the address and the monitor, then the model name."""
+        """The engine and the model: the engine's process names and monitor kind, at the address given."""
         built = build_config(load_catalog(), runtime, model, vendor or None, base_url or None)
         keep = self.raw()
         for key in ("target", "monitor", "network_watch", "runtime", "vendor"):
@@ -480,7 +480,7 @@ class App:
     def options(self) -> dict:
         cat = load_catalog()
         profiles = load_profiles(None)
-        return {"runtimes": [{"id": r["id"], "name": r["name"], "base_url": r["default_base_url"], "kind": r["kind"]} for r in cat.runtimes.values()],
+        return {"runtimes": [{"id": r["id"], "name": r["name"], "kind": r["kind"]} for r in cat.runtimes.values()],
                 "vendors": [{"id": v["id"], "name": v["name"]} for v in cat.vendors.values()],
                 "harnesses": [{"id": p["id"], "name": p["name"], "kind": p["kind"], "status": p["status"]} for p in profiles.values()],
                 "persona_categories": [{"id": k, "label": v["label"]} for k, v in personas.CATEGORIES.items()],

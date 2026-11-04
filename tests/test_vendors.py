@@ -26,7 +26,7 @@ def test_catalog_covers_the_requested_vendors_and_runtimes(catalog):
         assert entry["hf_orgs"] and entry["vendor_domains"] and entry["model_name_patterns"]
     for rt in ("llama.cpp", "vllm", "sglang", "ollama", "lmstudio", "tgi", "mlx-lm", "trtllm", "basalt", "strata",
                "generic"):
-        assert catalog.runtime(rt)["default_base_url"].startswith("http://127.0.0.1:")
+        assert catalog.runtime(rt)["name"] and "default_base_url" not in catalog.runtime(rt)
 
 
 @pytest.mark.parametrize("model,vendor", [
@@ -76,15 +76,14 @@ def test_merge_replaces_adds_and_removes(catalog):
         {"id": "acme", "name": "Acme", "hf_orgs": ["acme"], "vendor_domains": ["acme.example"],
          "model_name_patterns": ["^acme-"]},
         {"id": "xai", "remove": True}],
-        "runtimes": [{"id": "myserver", "name": "My server", "kind": "openai",
-                      "default_base_url": "http://127.0.0.1:5000"}]}
+        "runtimes": [{"id": "myserver", "name": "My server", "kind": "openai"}]}
     merged = Catalog(merge(catalog.data, local))
     assert merged.vendors["qwen"]["region_note"] == "changed"
     assert merged.vendors["qwen"]["vendor_domains"] == catalog.vendors["qwen"]["vendor_domains"]
     assert "xai" not in merged.vendors
     assert merged.detect_vendor("acme-7b")["id"] == "acme"
     assert [m.tag for m in merged.classify_host("www.acme.example")] == ["vendor_domain:acme"]
-    assert merged.runtime("myserver")["default_base_url"] == "http://127.0.0.1:5000"
+    assert merged.runtime("myserver")["name"] == "My server"
     assert "acme" not in catalog.vendors                    # the built-in data is not mutated
 
 
@@ -166,6 +165,6 @@ def test_cli_presets_and_init_runtime(tmp_path, capsys):
     assert "llama.cpp" in out and "moonshot" in out
     assert main(["init", "--dir", str(tmp_path), "--runtime", "vllm", "--model", "deepseek-ai/DeepSeek-V3.2"]) == 0
     cfg = load_config(tmp_path / "canary.json")
-    assert cfg.runtime == "vllm" and cfg.vendor == "deepseek" and cfg.target["base_url"] == "http://127.0.0.1:8000"
+    assert cfg.runtime == "vllm" and cfg.vendor == "deepseek" and cfg.target["base_url"] == "http://127.0.0.1:7232"
     assert main(["init", "--dir", str(tmp_path), "--runtime", "nope", "--force"]) == 2
     assert main(["init", "--dir", str(tmp_path), "--runtime", "vllm", "--vendor", "nope", "--force"]) == 2

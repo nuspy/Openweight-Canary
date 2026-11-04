@@ -177,12 +177,11 @@ mark { background: var(--l2); color: inherit; padding: 0 2px; border-radius: 3px
   <p class="muted small">The settings are saved in the config file the page was started with. A key you type is stored there; a key already stored is shown as ***.</p>
   <h2 class="standalone-only">Engine and model</h2>
   <div class="card grid2 standalone-only">
-    <label class="field"><span>Program that serves the model (engine)</span><select id="s-runtime"></select></label>
+    <label class="field"><span>Program that serves the model (engine): sets which processes are watched</span><select id="s-runtime"></select></label>
     <div class="field"><span>Model, as the server at that address offers it</span><div class="row"><select id="s-model-pick" aria-label="Models offered by the server" style="flex:1 1 220px"></select><button type="button" id="s-model-load">Load the list</button></div><input type="text" id="s-model" placeholder="or type a model name" aria-label="Model name"></div>
     <label class="field"><span>Address where that program listens (you can type any)</span><input type="text" id="s-base"></label>
     <label class="field"><span>Vendor (empty: detected from the model name)</span><select id="s-vendor"></select></label>
     <label class="field"><span>Key of the server, if it needs one</span><input type="password" id="s-key" autocomplete="off"></label>
-    <div class="field"><span>&nbsp;</span><button id="apply-runtime">Use this engine's defaults for the address and the monitor</button></div>
   </div>
   <h2>What to look for</h2>
   <div class="card" id="goals"></div>
@@ -569,10 +568,11 @@ function modelMenu(which, pickId, inputId, loadId, baseId, keyId) {
 const loadTargetModels = modelMenu("target", "s-model-pick", "s-model", "s-model-load", "s-base", "s-key");
 const loadReviewerModels = modelMenu("reviewer", "r-model-pick", "r-model", "r-model-load", "r-base", "r-key");
 
-$("apply-runtime").addEventListener("click", async () => {
-  try { await api("api/runtime", { runtime: val("s-runtime"), model: val("s-model"), vendor: val("s-vendor"), base_url: "" }); await loadSettings(); toast("Address and monitor set for this engine."); } catch (e) { toast(e.message); }
-});
 $("save").addEventListener("click", async () => {
+  const oldBase = (CONFIG.target || {}).base_url || "";
+  if (val("s-runtime") !== (CONFIG.runtime || "") && !$("s-runtime").closest(".standalone-only")?.hidden) {
+    try { await api("api/runtime", { runtime: val("s-runtime"), model: val("s-model"), vendor: val("s-vendor"), base_url: val("s-base") }); } catch (e) { toast("Not saved: " + e.message); return; }
+  }
   const goals = picks($("goals")); const harnesses = goals.includes("harness") ? picks($("harness-list")) : [];
   const patch = {
     target: { base_url: val("s-base"), model: val("s-model"), api_key: val("s-key") }, vendor: val("s-vendor") || null,
@@ -583,7 +583,9 @@ $("save").addEventListener("click", async () => {
     canary_listener: { enabled: val("m-listener") }, alerts: { min_severity: val("a-min"), command: val("a-cmd") },
     reviewer: val("r-model") ? { kind: "openai", base_url: val("r-base"), model: val("r-model"), api_key: val("r-key"), extra_headers: {} } : null,
   };
-  if (val("m-monitor")) patch.monitor = { base_url: val("m-monitor"), api_key: (CONFIG.monitor || {}).api_key || "" };
+  const mon = val("m-monitor");
+  if (val("s-runtime") === "basalt" && (!mon || mon === oldBase)) patch.monitor = { base_url: val("s-base"), api_key: (CONFIG.monitor || {}).api_key || "" };
+  else if (mon) patch.monitor = { base_url: mon, api_key: (CONFIG.monitor || {}).api_key || "" };
   try { await api("api/config", patch); $("save-msg").textContent = "Saved."; toast("Settings saved."); } catch (e) { $("save-msg").textContent = "Not saved: " + e.message; toast("Not saved: " + e.message); }
 });
 
