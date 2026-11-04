@@ -326,3 +326,25 @@ def test_ollama_style_listings_and_unreachable_servers(gui):
     assert code == 200 and not body["ok"] and body["models"] == [] and body["error"]
     code, body = post(base, "/api/models", {"which": "target", "base_url": "file:///etc/passwd"})
     assert not body["ok"] and "http" in body["error"]
+
+
+def test_a_session_still_running_is_listed_from_its_conversations(gui):
+    base, _, tmp = gui
+    write_json(tmp / "state" / "conversations" / "s00002_sensitive.json", {"turns": [{"user": "a", "reply": {"text": "b"}}]})
+    write_json(tmp / "state" / "conversations" / "s00002_control_hermes.json", {"calls": [], "tool_calls": 3, "interactions": 2})
+    rows = {r["session"]: r for r in json.loads(get(base, "/api/sessions")[1])}
+    assert rows[1].get("in_progress") is None and rows[2]["in_progress"] is True
+    assert rows[2]["harness"] == [{"role": "control", "profile": "hermes", "calls": 3, "interactions": 2}]
+    conv = json.loads(get(base, "/api/conversation?session=2&role=sensitive&profile=")[1])
+    assert conv["turns"][0]["user"] == "a"
+
+
+def test_the_summary_says_if_the_monitor_answers_and_the_reviews_are_listed(gui):
+    base, _, tmp = gui
+    s = json.loads(get(base, "/api/summary")[1])
+    assert s["monitor"] in ("ok", "down", "off") and s["review_every"] == 10 and s["reviews"] == 0
+    write_json(tmp / "state" / "reviews" / "review_0001.json", {"n": 1, "time": "t", "label": "periodic", "reviewer_model": "m", "reviewer_is_target": True, "last_session": 4,
+                                                              "assessment": {"summary": "Nothing stands out.", "priorities": [{"n": 1, "why": "check"}], "next_checks": ["read s4"]}, "reply": {}})
+    rows = json.loads(get(base, "/api/reviews")[1])
+    assert rows[0]["summary"] == "Nothing stands out." and rows[0]["is_target"] and rows[0]["priorities"][0]["n"] == 1
+    assert json.loads(get(base, "/api/summary")[1])["reviews"] == 1

@@ -126,6 +126,7 @@ pre { background: var(--panel); border: 1px solid var(--line); border-radius: 8p
 <main>
 <section id="results" role="tabpanel" aria-labelledby="t-results">
   <p class="muted small">Each finding has a level. The colour helps, the name and the symbol say the same: ○ Normal (white), ◆ Interesting (green), ▲ Suspicious (yellow), ⬢ Very suspicious (orange), ✖ Critical (red).</p>
+  <div id="reviews" class="card" hidden></div>
   <div class="legend" id="legend" role="group" aria-label="Filter by level"></div>
   <div class="filters card">
     <label>Search<input type="search" id="f-q" placeholder="text in the finding, a host, a command"></label>
@@ -184,6 +185,7 @@ pre { background: var(--panel); border: 1px solid var(--line); border-radius: 8p
   <div class="card" id="trigger-list"></div>
   <h2>Analysis parameters</h2>
   <div class="card grid2">
+    <label class="field"><span>AI review of the findings every N sessions</span><input type="number" id="p-review" min="1"></label>
     <label class="field"><span>Folder where results are kept</span><input type="text" id="p-state"></label>
     <label class="field"><span>Sessions per hour</span><input type="number" id="p-rate" min="0.1" step="any"></label>
     <label class="field"><span>Duration (30m, 2h, 1d or until-stopped)</span><input type="text" id="p-duration"></label>
@@ -285,6 +287,9 @@ async function refreshSummary() {
     h("span", { class: "pill" }, h("span", { class: "dot" + (s.running ? " on" : ""), "aria-hidden": "true" }), s.running ? "Running" : "Not running"),
     h("span", { class: "pill" }, s.sessions + " sessions"), h("span", { class: "pill" }, s.findings + " findings"),
     s.alerts ? h("span", { class: "pill lv4" }, "✖ " + s.alerts + " alerts") : null,
+    h("span", { class: "pill" + (s.monitor === "down" ? " lv4" : ""), title: "The network monitor sees which connections the model's runtime opens" },
+      s.monitor === "ok" ? "Network monitor: on" : s.monitor === "down" ? "✖ Network monitor: not answering" : "Network monitor: none set"),
+    h("span", { class: "pill", title: "The AI reads the findings every " + s.review_every + " sessions" }, s.reviews + " AI reviews"),
     s.chain_ok ? null : h("span", { class: "pill lv4" }, "Findings file altered: " + s.chain_message)].filter(Boolean));
   const lg = $("legend"); lg.replaceChildren(...LEVELS.map((l) => {
     const n = s.by_level[l.id]; const b = h("button", { class: "chip lv" + l.level, "aria-pressed": String(picked.has(l.level)),
@@ -293,6 +298,22 @@ async function refreshSummary() {
     b.title = l.hint; return b; }));
   const kinds = $("f-kind"); const cur = kinds.value; kinds.replaceChildren(h("option", { value: "" }, "All kinds"), ...s.kinds.map(([k, n]) => h("option", { value: k }, k + " (" + n + ")"))); kinds.value = cur;
   return s;
+}
+
+/* what the AI reviewer said about the findings so far */
+async function loadReviews(summary) {
+  const box = $("reviews"); const list = await api("api/reviews");
+  box.hidden = false;
+  if (!list.length) {
+    box.replaceChildren(h("strong", {}, "AI review"), h("p", { class: "small muted" }, "No AI review yet. The reviewer reads the new findings after every " + summary.review_every + " sessions; you can ask for one now with the button below, and set the interval in Settings."));
+    return;
+  }
+  const r = list[0];
+  box.replaceChildren(h("div", { class: "row" }, h("strong", {}, "Latest AI review (" + list.length + ")"), h("span", { class: "badge" }, r.model || "reviewer"),
+      r.is_target ? h("span", { class: "badge lv2" }, "▲ same model as the one under test") : null, h("span", { class: "muted small" }, (r.time || "") + " · up to session " + (r.last_session ?? "-"))),
+    h("p", {}, r.summary || "(no summary)"),
+    r.priorities.length ? h("ul", {}, ...r.priorities.slice(0, 5).map((x) => h("li", {}, "finding " + x.n + ": " + x.why))) : null,
+    r.next_checks.length ? h("p", { class: "small muted" }, "Next: " + r.next_checks.join(" · ")) : null);
 }
 
 /* results */
@@ -352,7 +373,7 @@ async function loadSessions() {
     ...list.slice().reverse().map((s) => {
       const p = s.persona; const nr = s.narrative;
       return h("div", { class: "card lv" + s.worst.level },
-        h("div", { class: "row" }, h("strong", {}, "Session " + s.session), badge(s.worst.level), p ? h("span", {}, p.name || ("the " + p.role), " — ", p.org, p.real ? " (real person, local file)" : "") : null,
+        h("div", { class: "row" }, h("strong", {}, "Session " + s.session), s.in_progress ? h("span", { class: "badge" }, "● running now") : null, badge(s.worst.level), p ? h("span", {}, p.name || ("the " + p.role), " — ", p.org, p.real ? " (real person, local file)" : "") : null,
           s.domain ? h("span", { class: "badge" }, s.domain) : null),
         nr ? h("p", { class: "small" }, nr.done + " of " + nr.planned + " turns" + (nr.stopped ? " — stopped: " + nr.stopped : "") + " · triggers at turns " + nr.triggers.map((t) => t.turn + " (" + t.family + ")").join(", ")) : null,
         h("div", { class: "row" },
@@ -412,7 +433,7 @@ async function loadSettings() {
   group($("context-list"), OPTIONS.contexts, (c.personas || {}).domains || [], "context"); val("w-files", (c.workspace || {}).files ?? 18);
   const nv = c.narrative || {}; val("n-turns", nv.turns ?? 100); val("n-ctx", nv.context_tokens ?? 56000); val("n-reply", nv.reply_tokens ?? 700); val("n-harness", nv.harness_interactions ?? 20);
   group($("trigger-list"), OPTIONS.triggers, nv.triggers || OPTIONS.triggers.map((t) => t.id), "trigger");
-  val("p-state", c.state_dir); val("p-rate", c.sessions_per_hour); val("p-duration", c.duration); val("p-words", c.doc_words); val("p-research", c.research_share); val("p-hturns", c.harness_turns); val("p-tokens", c.max_tokens);
+  val("p-state", c.state_dir); val("p-review", c.review_every ?? 10); val("p-rate", c.sessions_per_hour); val("p-duration", c.duration); val("p-words", c.doc_words); val("p-research", c.research_share); val("p-hturns", c.harness_turns); val("p-tokens", c.max_tokens);
   val("m-listener", (c.canary_listener || {}).enabled); val("m-monitor", (c.monitor || {}).base_url || "");
   const r = c.reviewer || {}; val("r-base", r.base_url); val("r-model", r.model); val("r-key", r.api_key);
   if ($("s-base").value) loadTargetModels(); if ($("r-base").value) loadReviewerModels(); val("a-min", (c.alerts || {}).min_severity || "high"); val("a-cmd", (c.alerts || {}).command || "");
@@ -449,7 +470,7 @@ $("save").addEventListener("click", async () => {
     harnesses, personas: { enabled: goals.includes("personas"), categories: picks($("persona-list")), domains: picks($("context-list")) },
     workspace: { enabled: goals.includes("workspace"), files: +val("w-files") },
     narrative: { enabled: goals.includes("narrative"), turns: +val("n-turns"), context_tokens: +val("n-ctx"), reply_tokens: +val("n-reply"), harness_interactions: +val("n-harness"), triggers: picks($("trigger-list")) },
-    state_dir: val("p-state"), sessions_per_hour: +val("p-rate"), duration: val("p-duration"), doc_words: +val("p-words"), research_share: +val("p-research"), harness_turns: +val("p-hturns"), max_tokens: +val("p-tokens"),
+    state_dir: val("p-state"), review_every: +val("p-review"), sessions_per_hour: +val("p-rate"), duration: val("p-duration"), doc_words: +val("p-words"), research_share: +val("p-research"), harness_turns: +val("p-hturns"), max_tokens: +val("p-tokens"),
     canary_listener: { enabled: val("m-listener") }, alerts: { min_severity: val("a-min"), command: val("a-cmd") },
     reviewer: val("r-model") ? { kind: "openai", base_url: val("r-base"), model: val("r-model"), api_key: val("r-key"), extra_headers: {} } : null,
   };
@@ -526,8 +547,8 @@ $("cat-reset-all").addEventListener("click", async () => { try { await api("api/
   const qs = new URLSearchParams(location.search);
   if (qs.get("theme")) document.documentElement.dataset.theme = qs.get("theme");
   if (qs.get("section")) showTab(qs.get("section"));
-  await refreshSummary(); await loadFindings();
-  setInterval(async () => { if (!document.hidden) { try { const s = await refreshSummary(); if (s.running && !$("results").hidden) loadFindings(); } catch (e) {} } }, 5000);
+  const first = await refreshSummary(); await loadFindings(); loadReviews(first);
+  setInterval(async () => { if (!document.hidden) { try { const s = await refreshSummary(); if (!$("results").hidden) { loadReviews(s); if (s.running) loadFindings(); } } catch (e) {} } }, 5000);
 })();
 </script>
 </body>

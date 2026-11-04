@@ -24,7 +24,8 @@ from ..findings import read_findings, verify_chain
 from ..harnesses import load_profiles
 from ..levels import LEVELS, annotate
 from ..presets import build_config
-from ..reviewer import SYSTEM_PROMPT, parse_assessment
+from ..monitor import make_monitor
+from ..reviewer import SYSTEM_PROMPT, parse_assessment, read_reviews
 from ..providers import Provider, list_models
 from ..stats import load_state
 from ..util import read_json, read_jsonl, write_json
@@ -212,9 +213,40 @@ class App:
                 kinds[r["kind"]] = kinds.get(r["kind"], 0) + 1
         pid = launch.running_pid(sd)
         chain = verify_chain(sd / "findings.jsonl")
+        monitor = self._monitor()
+        revs = read_reviews(sd)
         return {"state_dir": str(sd), "findings": len(rows), "by_level": by_level, "kinds": sorted(kinds.items(), key=lambda x: -x[1])[:30],
                 "sessions": len(read_jsonl(sd / "sessions.jsonl")), "running": bool(pid), "pid": pid, "status": launch.read_status(sd),
-                "alerts": _count_alerts(sd), "chain_ok": chain.ok, "chain_message": chain.message, "levels": LEVELS}
+                "alerts": _count_alerts(sd), "chain_ok": chain.ok, "chain_message": chain.message, "levels": LEVELS,
+                "monitor": monitor, "reviews": len(revs), "review_every": self._review_every()}
+
+    def _monitor(self) -> str:
+        """`ok`, `down` (a monitor is set and does not answer) or `off` (none is set)."""
+        try:
+            mon = make_monitor(self.cfg())
+        except (ConfigError, OSError, ValueError):
+            return "off"
+        if mon is None:
+            return "off"
+        try:
+            return "ok" if mon.status() is not None else "down"
+        except Exception:
+            return "down"
+
+    def _review_every(self) -> int:
+        try:
+            return int(self.cfg().review_every)
+        except (ConfigError, OSError, ValueError):
+            return 10
+
+    def reviews(self) -> list[dict]:
+        out = []
+        for r in reversed(read_reviews(self.state_dir())):
+            a = r.get("assessment") or {}
+            out.append({"n": r["n"], "time": r.get("time"), "label": r.get("label"), "model": r.get("reviewer_model"), "is_target": bool(r.get("reviewer_is_target")),
+                        "last_session": r.get("last_session"), "summary": a.get("summary") or (r.get("reply") or {}).get("text", "")[:1200],
+                        "priorities": a.get("priorities") or [], "next_checks": a.get("next_checks") or []})
+        return out
 
     def sessions(self) -> list[dict]:
         sd = self.state_dir()
@@ -227,6 +259,24 @@ class App:
             w["level"] = max(w["level"], r["level"])
             w["counts"][r["level"]] += 1
         out = []
+        known = {s["session"] for s in read_jsonl(sd / "sessions.jsonl")}
+        running: dict[int, dict] = {}
+        for f in sorted((sd / "conversations").glob("s*_*.json")) if (sd / "conversations").exists() else []:
+            m = re.fullmatch(r"s(\d+)_(sensitive|control)(?:_(.+?))?\.json", f.name)
+            if not m or int(m.group(1)) in known:
+                continue
+            row = running.setdefault(int(m.group(1)), {"session": int(m.group(1)), "time": None, "persona": None, "style": None, "domain": None,
+                                                      "narrative": None, "harness": [], "worst": {"level": 0, "counts": [0] * 5}, "in_progress": True})
+            if m.group(3):
+                data = read_json(f, {}) or {}
+                row["harness"].append({"role": m.group(2), "profile": m.group(3), "calls": data.get("tool_calls", len(data.get("calls") or [])),
+                                       "interactions": data.get("interactions")})
+        for number, row in running.items():
+            for r in self.levels_for(read_findings(sd / "findings.jsonl")):
+                if r.get("session") == number:
+                    row["worst"]["level"] = max(row["worst"]["level"], r["level"])
+                    row["worst"]["counts"][r["level"]] += 1
+            out.append(row)
         for s in read_jsonl(sd / "sessions.jsonl"):
             convs = s.get("conversations", {})
             out.append({"session": s["session"], "time": s.get("time"), "persona": s.get("persona"), "style": s.get("style"),
@@ -443,6 +493,8 @@ def handle(app: App, method: str, raw_path: str, headers, body: bytes = b"") -> 
             return ok(r) if r else ok({"error": "no such finding"}, 404)
         if path == "/api/sessions":
             return ok(app.sessions())
+        if path == "/api/reviews":
+            return ok(app.reviews())
         if path == "/api/conversation":
             r = app.conversation(int(q["session"][0]), q.get("role", ["sensitive"])[0], q.get("profile", [""])[0])
             return ok(r) if r else ok({"error": "no such conversation"}, 404)
