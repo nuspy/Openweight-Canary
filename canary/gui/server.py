@@ -9,6 +9,7 @@ import io
 import json
 import os
 import re
+import secrets
 import shutil
 import tempfile
 import threading
@@ -59,6 +60,7 @@ class App:
         self.prefix = prefix.rstrip("/")
         self.check_host = check_host
         self.start_fn, self.stop_fn = start, stop
+        self.jobs: dict[str, dict] = {}
         self.overlay = Path(overlay) if overlay else None
         self.path = Path(config_path).resolve()
         self.override = Path(state_dir).resolve() if state_dir else None
@@ -418,6 +420,28 @@ class App:
         return {"ok": True}
 
     # -- the AI pre-analysis
+    def analyse_job(self, body: dict) -> dict:
+        """Start the pre-analysis in the background: a reviewer that is also busy with the running test, or that thinks for a long time, takes minutes."""
+        job = secrets.token_hex(4)
+        self.jobs[job] = {"state": "running", "started": time.time()}
+
+        def work():
+            try:
+                result = self.analyse(body)
+            except Exception as exc:                                       # the page shows it instead of waiting for ever
+                result = {"ok": False, "error": f"{type(exc).__name__}: {exc}"[:300]}
+            self.jobs[job] = {**self.jobs[job], "state": "done", "result": result, "finished": time.time()}
+        threading.Thread(target=work, daemon=True, name=f"analyse-{job}").start()
+        for old in [k for k, v in self.jobs.items() if v.get("finished", time.time()) < time.time() - 3600]:
+            self.jobs.pop(old, None)
+        return {"ok": True, "job": job}
+
+    def analyse_status(self, job: str) -> dict:
+        j = self.jobs.get(job)
+        if j is None:
+            return {"ok": False, "error": "no such job (the page server was restarted)"}
+        return {"ok": True, "state": j["state"], "elapsed": round((j.get("finished") or time.time()) - j["started"]), **({"result": j["result"]} if j["state"] == "done" else {})}
+
     def analyse(self, body: dict) -> dict:
         cfg = self.cfg()
         if not cfg.reviewer:
@@ -526,7 +550,7 @@ def _count_alerts(sd: Path) -> int:
 
 POSTS = {"/api/config": lambda app, b: app.save_config(b),
          "/api/runtime": lambda app, b: app.apply_runtime(b["runtime"], b.get("model", ""), b.get("vendor"), b.get("base_url")),
-         "/api/start": lambda app, b: app.start(), "/api/stop": lambda app, b: app.stop(), "/api/analyse": lambda app, b: app.analyse(b),
+         "/api/start": lambda app, b: app.start(), "/api/stop": lambda app, b: app.stop(), "/api/analyse": lambda app, b: app.analyse_job(b) if b.get("async") else app.analyse(b),
          "/api/chat": lambda app, b: app.chat(b), "/api/models": lambda app, b: app.models(b),
          "/api/catalog/save": lambda app, b: app.catalog_change("save", b), "/api/catalog/delete": lambda app, b: app.catalog_change("delete", b),
          "/api/catalog/reset": lambda app, b: app.catalog_change("reset", b)}
@@ -564,6 +588,8 @@ def handle(app: App, method: str, raw_path: str, headers, body: bytes = b"") -> 
             return ok(app.sessions())
         if path == "/api/reviews":
             return ok(app.reviews())
+        if path == "/api/analyse-status":
+            return ok(app.analyse_status(q.get("job", [""])[0]))
         if path == "/api/conversation":
             r = app.conversation(int(q["session"][0]), q.get("role", ["sensitive"])[0], q.get("profile", [""])[0])
             return ok(r) if r else ok({"error": "no such conversation"}, 404)

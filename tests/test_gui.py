@@ -423,3 +423,31 @@ def test_a_finding_without_a_turn_number_finds_its_text_by_what_it_matched(gui):
     n = max(r["n"] for r in json.loads(get(base, "/api/findings?kind=suspect_url")[1])["items"])
     f = json.loads(get(base, f"/api/finding/{n}")[1])
     assert f["context"]["turn"] == 2 and f["context"]["user"] == "again" and f["context"]["match"] == "https://example.net/a?x=1"
+
+
+def test_the_pre_analysis_can_run_in_the_background_and_be_polled(gui, monkeypatch):
+    import time as _t
+    import canary.gui.server as server
+    base, _, _ = gui
+    same = {"kind": "openai", "base_url": "http://127.0.0.1:9", "model": "r", "api_key": "", "extra_headers": {}}
+    post(base, "/api/config", {"reviewer": same})
+
+    class Slow:
+        def __init__(self, *a, **k):
+            pass
+
+        def chat(self, messages, **k):
+            _t.sleep(0.6)
+            return _Reply('{"summary": "Fine.", "priorities": [], "probably_legitimate": [], "next_checks": []}')
+    monkeypatch.setattr(server, "Provider", Slow)
+    code, started = post(base, "/api/analyse", {"ids": [1], "async": True})
+    assert code == 200 and started["ok"] and started["job"]
+    first = json.loads(get(base, f"/api/analyse-status?job={started['job']}")[1])
+    assert first["state"] == "running" and "result" not in first
+    for _ in range(40):
+        status = json.loads(get(base, f"/api/analyse-status?job={started['job']}")[1])
+        if status["state"] == "done":
+            break
+        _t.sleep(0.1)
+    assert status["state"] == "done" and status["result"]["ok"] and status["result"]["assessment"]["summary"] == "Fine."
+    assert json.loads(get(base, "/api/analyse-status?job=nope")[1])["ok"] is False
