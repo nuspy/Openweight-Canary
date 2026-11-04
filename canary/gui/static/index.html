@@ -351,6 +351,8 @@ async function openFinding(n) {
     h("div", { class: "row" }, h("button", { onclick: () => d.hidden = true }, "Close"), badge(lv)),
     h("h2", {}, f.kind), h("p", { class: "muted small" }, "finding " + f.n + " · " + f.time + " · severity " + f.severity + " · session " + (f.session ?? "-") + " · " + (f.role || "-") + " · " + (f.harness || "chat")),
     h("p", {}, h("strong", {}, "What this is. "), f.explain || ""),
+    h("p", {}, h("strong", {}, "Why this level. "), f.why_level || ""),
+    f.related && f.related.length ? h("div", {}, h("strong", {}, "Built from these findings"), h("div", { class: "row" }, ...f.related.map((x) => h("button", { class: "chip lv" + x.level, onclick: () => openFinding(x.n) }, "#" + x.n + " " + x.kind + (x.role ? " (" + x.role + ")" : ""))))) : null,
     f.context ? h("div", {}, h("h2", {}, "What was said (turn " + f.context.turn + ")"),
         h("div", { class: "bubble me" }, h("div", { class: "who" }, "The request"), h("div", { class: "text" }, f.context.user || "(nothing)")),
         h("div", { class: "bubble model" }, h("div", { class: "who" }, "The model"), h("div", { class: "text" }, ...marked(f.context.reply || "(nothing)", f.context.match)))) : h("p", { class: "small muted" }, "The text around this finding is not stored for this kind."),

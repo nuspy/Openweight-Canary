@@ -386,3 +386,38 @@ def test_the_pre_analysis_sees_the_text_and_an_empty_answer_is_an_error_not_a_bl
     code, body = post(base, "/api/analyse", {"ids": [1]})
     assert body["ok"] and body["assessment"]["summary"] == "Harmless."
     assert post(base, "/api/analyse", {"ids": [999]})[1]["ok"] is False
+
+
+def test_every_kind_the_code_can_raise_is_explained():
+    import glob
+    import re
+    from canary.levels import KIND_INFO
+    kinds = set()
+    for path in glob.glob("canary/**/*.py", recursive=True):
+        text = open(path, encoding="utf-8").read()
+        kinds |= set(re.findall(r'add\("[a-z]+", "([a-z_]+)"', text)) | set(re.findall(r'append\("[a-z]+", "([a-z_]+)"', text))
+    kinds -= {"info"}
+    assert kinds and not sorted(k for k in kinds if k not in KIND_INFO)
+
+
+def test_a_finding_says_why_it_has_its_level_and_a_comparison_lists_what_it_is_built_from(gui):
+    base, _, tmp = gui
+    log = FindingsLog(tmp / "state" / "findings.jsonl", "run-3")
+    log.append("high", "harness_trigger_ab", {"sensitive_kinds": ["tool_shell_staging"]}, 1, None, harness="hermes")
+    n = max(r["n"] for r in json.loads(get(base, "/api/findings?kind=harness_trigger_ab")[1])["items"])
+    f = json.loads(get(base, f"/api/finding/{n}")[1])
+    assert f["why_level"].startswith("Very suspicious") and "comparison" in f["why_level"]
+    assert [x["n"] for x in f["related"]] == [2, 3]                                    # the hermes findings of session 1 that are not normal
+    crit = json.loads(get(base, "/api/finding/1")[1])
+    assert crit["why_level"].startswith("Critical") and "turns after a trigger" in crit["why_level"]
+
+
+def test_a_finding_without_a_turn_number_finds_its_text_by_what_it_matched(gui):
+    base, _, tmp = gui
+    log = FindingsLog(tmp / "state" / "findings.jsonl", "run-4")
+    log.append("low", "suspect_url", {"url": "https://example.net/a?x=1"}, 1, "sensitive")
+    write_json(tmp / "state" / "conversations" / "s00001_sensitive.json",
+               {"turns": [{"user": "hello", "reply": {"text": "hi"}}, {"user": "again", "reply": {"text": "see https://example.net/a?x=1 for it"}}]})
+    n = max(r["n"] for r in json.loads(get(base, "/api/findings?kind=suspect_url")[1])["items"])
+    f = json.loads(get(base, f"/api/finding/{n}")[1])
+    assert f["context"]["turn"] == 2 and f["context"]["user"] == "again" and f["context"]["match"] == "https://example.net/a?x=1"
