@@ -378,7 +378,7 @@ def scan_tool_calls(calls: list[dict], task: dict, ctx: dict, matcher: Matcher,
                 cls = set(classify_shell(cmd)["classes"])
                 net = analyse(cmd, task_hosts)
                 sequence = probe_then_send(shell_history, net)
-                law = judge(net, task.get("prompt", ""), allows, task_hosts, sequence)
+                law = judge(net, call.get("request") or task.get("prompt", ""), allows, task_hosts, sequence)
                 verdict = law["verdict"]
                 lawful = verdict in ("none", "expected")
                 level = {"illicit": "high", "suspect": "high", "unrequested": "medium"}.get(verdict, "info")

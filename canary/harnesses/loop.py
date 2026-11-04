@@ -169,16 +169,40 @@ class HarnessRun:
             self.errors.append(str(reply.error)[:200])
         return reply
 
-    def run(self) -> dict:
+    def run(self, follow_ups: list[str] | None = None, budget_tokens: int = 0) -> dict:
+        """One task, or a conversation: after the model answers, the next of `follow_ups` is said and the tool loop goes on, until they are used up
+        or the text of the conversation passes `budget_tokens` (0: no limit). With follow-ups the harness's own compaction is not applied: the
+        context is what a long conversation tests."""
         self.system = self.system_prompt()
         self.start()
         self.shown = [self.system] + [str(m.get("content") or "") for m in self.messages]
         native = self.mode == "native"
         tools = api_tools(self.profile) if native else None
+        pending = list(follow_ups or [])
+        self.request = self.task_text
+        self.interactions = 1
+        while True:
+            self._interaction(tools, native, compaction=not pending)
+            if self.stop == "answered" and pending:
+                if budget_tokens and sum(len(str(m.get("content") or "")) for m in self.messages) / 3.5 > budget_tokens:
+                    self.stop = "context"
+                    break
+                text = pending.pop(0)
+                self.messages.append({"role": "user", "content": text})
+                self.shown.append(text)
+                self.request = text
+                self.interactions += 1
+                self.stop = ""
+                continue
+            break
+        return self.result()
+
+    def _interaction(self, tools, native: bool, compaction: bool) -> None:
         turns = 1 if self.mode == "text_blocks" else self.turns
         reminder_every = int(self.loop.get("reminder_every") or 0)
-        compaction_after = int(self.loop.get("compaction_after") or 0)
+        compaction_after = int(self.loop.get("compaction_after") or 0) if compaction else 0
         for turn in range(1, turns + 1):
+            self._turn = getattr(self, "_turn", 0) + 1
             reply = self._chat(tools)
             if reply.error and not reply.text and not reply.tool_calls:
                 self.stop = "error"
@@ -188,22 +212,21 @@ class HarnessRun:
             if self.mode == "text_blocks":
                 self.stop = "answered"
                 break
-            calls = [{"id": c.get("id") or f"call_{turn}_{i}", "name": c["name"], "arguments": c["arguments"]}
+            calls = [{"id": c.get("id") or f"call_{self._turn}_{i}", "name": c["name"], "arguments": c["arguments"]}
                      for i, c in enumerate(reply.tool_calls)] if native else \
-                [dict(c, id=f"call_{turn}_{i}") for i, c in enumerate(parse_text_calls(reply.text or "", self.mode))]
+                [dict(c, id=f"call_{self._turn}_{i}") for i, c in enumerate(parse_text_calls(reply.text or "", self.mode))]
             if not calls:
                 self.stop = "answered"
                 break
             if native:
-                self.messages.append(reply.message or self._call_message(calls[0]["name"], calls[0]["arguments"],
-                                                                          calls[0]["id"]))
+                self.messages.append(reply.message or self._call_message(calls[0]["name"], calls[0]["arguments"], calls[0]["id"]))
             else:
                 self.messages.append({"role": "assistant", "content": reply.text})
             finished = False
             for call in calls:
                 role = effective_role(self.roles.get(call["name"]), call["arguments"])
-                self.calls.append({"turn": turn, "name": call["name"], "role": role,
-                                   "arguments": call["arguments"], "after": self.last_result})
+                self.calls.append({"turn": self._turn, "name": call["name"], "role": role, "arguments": call["arguments"],
+                                   "after": self.last_result, "request": self.request})
                 result = self.world.run(role, call["name"], call["arguments"]) if role else \
                     render(self.loop.get("unknown_tool_error", "Error: unknown tool <<name>>"), {"name": call["name"]})
                 if role == "finish":
@@ -217,7 +240,8 @@ class HarnessRun:
                 self.messages[-1]["content"] += "\n\n" + render(self.loop["reminder"], self.values)
             if compaction_after and turn == compaction_after:
                 self._compact()
-        return self.result()
+        else:
+            self.stop = self.stop or "turn limit"
 
     def result(self) -> dict:
         findings = []

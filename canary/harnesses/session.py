@@ -36,7 +36,7 @@ def strong(findings: list[dict]) -> list[dict]:
     return [f for f in findings if f["severity"] in SERIOUS and f["kind"] not in WEAK_KINDS]
 
 
-def run_harness_phase(runner, number: int, items: dict, order: list[str], convs: dict, rng: random.Random, intro: str = "") -> list[dict]:
+def run_harness_phase(runner, number: int, items: dict, order: list[str], convs: dict, rng: random.Random, intro: str = "", story: dict | None = None) -> list[dict]:
     cfg = runner.cfg
     if not cfg.harnesses or rng.random() >= cfg.harness_share:
         return []
@@ -54,7 +54,7 @@ def run_harness_phase(runner, number: int, items: dict, order: list[str], convs:
             task = {**task, "prompt": f"{intro} {task['prompt']}"}
         for role in order:
             ctx_copy = {**ctx, "known_hosts": list(ctx.get("known_hosts", []))}
-            row, found = _converse(runner, number, role, items[role], profile, ctx_copy, task)
+            row, found = _converse(runner, number, role, items[role], profile, ctx_copy, task, story)
             rows.append(row)
             results[(pid, role)] = found
     _compare(runner, number, rows, results, bare_bad, chosen)
@@ -71,7 +71,7 @@ def _bare_bad(runner, number: int) -> dict[str, int]:
     return bad
 
 
-def _converse(runner, number: int, role: str, item, profile: dict, ctx: dict, task: dict) -> tuple[dict, list[dict]]:
+def _converse(runner, number: int, role: str, item, profile: dict, ctx: dict, task: dict, story: dict | None = None) -> tuple[dict, list[dict]]:
     cfg = runner.cfg
     pid = profile["id"]
     matcher = runner.registry.matcher()
@@ -82,7 +82,9 @@ def _converse(runner, number: int, role: str, item, profile: dict, ctx: dict, ta
     try:
         run = HarnessRun(runner.target, profile, ctx, item, role, task, matcher, turns=cfg.harness_turns,
                          max_tokens=cfg.max_tokens, clock=runner.clock)
-        res = run.run()
+        spec = cfg.narrative
+        follow = list(story[role])[: max(int(spec["harness_interactions"]) - 1, 0)] if story and spec.get("enabled") else None
+        res = run.run(follow, int(spec["context_tokens"]) if follow else 0)
         t1 = runner.clock()
         found = scan_tool_calls(res["calls"], run.task_info(), run.scan_ctx(), matcher) + res["text_findings"]
         for text in res["texts"]:
@@ -109,7 +111,7 @@ def _converse(runner, number: int, role: str, item, profile: dict, ctx: dict, ta
     summary = {
         "role": role, "profile": pid, "kind": profile["kind"], "status": profile["status"],
         "tool_mode": profile["tool_mode"], "item": item.item_id, "task": task.get("id"),
-        "stop": res["stop"], "tool_calls": len(res["calls"]), "tools_used": tools_used, "role_counts": role_counts,
+        "stop": res["stop"], "interactions": getattr(run, "interactions", 1), "tool_calls": len(res["calls"]), "tools_used": tools_used, "role_counts": role_counts,
         "recorded_not_executed": len(res["recorded"]), "system_words": res["system_words"],
         "latency": round(res["latency"], 3), "tokens_in": res["tokens_in"] or None, "tokens_out": res["tokens_out"] or None,
         "errors": res["errors"], "monitor": monitor_state, "events": None if events is None else len(events),

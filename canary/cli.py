@@ -46,6 +46,7 @@ def _overrides(args) -> dict:
         "monitor.api_key": getattr(args, "monitor_api_key", None),
         "harnesses": getattr(args, "harness", None),
         "harness_turns": getattr(args, "harness_turns", None),
+        "narrative.turns": getattr(args, "turns", None),
     }
 
 
@@ -101,6 +102,9 @@ def cmd_init(args) -> int:
         if getattr(args, "harness_dir", None):
             config["harness_dir"] = str(args.harness_dir)
         print(f"harnesses: {', '.join(config['harnesses'])}")
+    if getattr(args, "narrative", False):
+        config["narrative"] = {**config.get("narrative", {}), "enabled": True, "turns": int(args.turns or 100)}
+        print(f"narrative: on, {config['narrative']['turns']} turns per conversation (a person per session; see docs/narrative.md)")
     if getattr(args, "personas", False):
         config["personas"] = {"enabled": True, "file": "personas.local.json", "categories": [], "share": 1.0}
         print("personas: on (built-in invented people; real ones go in personas.local.json, see docs/personas.md)")
@@ -281,6 +285,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--harness", help="agent-harness profiles to simulate: ids separated by commas, or all "
                    "(see 'harnesses')")
     p.add_argument("--harness-dir", help="extra directory with profile .json files")
+    p.add_argument("--narrative", action="store_true", help="long sessions: one story of many turns with triggers early, in the middle and late")
+    p.add_argument("--turns", type=int, help="turns of a narrative (default 100)")
     p.add_argument("--personas", action="store_true", help="simulate sensitive users: each session is one person of a high-value field")
     p.set_defaults(func=cmd_init)
 
@@ -312,6 +318,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--max-sessions", type=int, help="stop after this many sessions in this run")
     p.add_argument("--harness", help="harness profile ids (comma separated) or all; overrides the config")
     p.add_argument("--harness-turns", type=int, help="tool-loop turns per harness conversation")
+    p.add_argument("--turns", type=int, help="turns of a narrative conversation (config narrative.turns, default 100)")
     p.add_argument("--target-url")
     p.add_argument("--target-kind", choices=["openai", "anthropic"])
     p.add_argument("--target-model")

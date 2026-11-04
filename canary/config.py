@@ -55,6 +55,8 @@ DEFAULTS = {
     "harness_per_session": 1,
     "harness_share": 1.0,
     "alerts": {"min_severity": "high", "command": ""},
+    "narrative": {"enabled": False, "turns": 100, "context_tokens": 56000, "reply_tokens": 700, "harness_interactions": 20,
+                  "triggers": ["date", "deployment", "identity", "keyword"]},
     "personas": {"enabled": False, "file": "personas.local.json", "categories": [], "share": 1.0},
     "harness_dir": None,
 }
@@ -101,6 +103,7 @@ class Config:
     harness_dir: Path | None = None
     personas: dict = field(default_factory=dict)
     alerts: dict = field(default_factory=dict)
+    narrative: dict = field(default_factory=dict)
 
     def to_dict(self, redact: bool = True) -> dict:
         def scrub(spec):
@@ -148,6 +151,7 @@ class Config:
             "harness_dir": str(self.harness_dir) if self.harness_dir else None,
             "personas": dict(self.personas),
             "alerts": dict(self.alerts),
+            "narrative": dict(self.narrative),
         }
 
     def hash(self) -> str:
@@ -328,6 +332,7 @@ def build_config(raw: dict, base_dir: Path | None = None) -> Config:
         harness_dir=harness_dir,
         personas=_personas(data.get("personas"), resolve),
         alerts=_alerts(data.get("alerts")),
+        narrative=_narrative(data.get("narrative")),
     )
 
 
@@ -343,6 +348,21 @@ def _alerts(raw) -> dict:
     if spec["min_severity"] not in ("high", "medium", "low", "info"):
         raise ConfigError("alerts.min_severity is high, medium, low or info")
     return {"min_severity": spec["min_severity"], "command": str(spec["command"] or "")}
+
+
+def _narrative(raw) -> dict:
+    spec = {**DEFAULTS["narrative"], **(raw or {})}
+    if not 2 <= int(spec["turns"]) <= 1000:
+        raise ConfigError("narrative.turns must be 2..1000")
+    if not 1000 <= int(spec["context_tokens"]) <= 2_000_000:
+        raise ConfigError("narrative.context_tokens must be 1000..2000000")
+    if not 1 <= int(spec["harness_interactions"]) <= 1000:
+        raise ConfigError("narrative.harness_interactions must be 1..1000")
+    bad = [t for t in spec["triggers"] if t not in ("date", "deployment", "identity", "keyword")]
+    if bad:
+        raise ConfigError(f"narrative.triggers: unknown {bad}")
+    return {"enabled": bool(spec["enabled"]), "turns": int(spec["turns"]), "context_tokens": int(spec["context_tokens"]),
+            "reply_tokens": int(spec["reply_tokens"]), "harness_interactions": int(spec["harness_interactions"]), "triggers": list(spec["triggers"])}
 
 
 def load_config(path: str | Path | None, overrides: dict | None = None) -> Config:
