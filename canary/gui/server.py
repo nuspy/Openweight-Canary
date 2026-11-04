@@ -360,7 +360,7 @@ class App:
         info = ((sess.get("conversations") or {}).get(role) or {}).get("narrative") or {}
         rows = [annotate(r) for r in read_findings(self.state_dir() / "findings.jsonl")
                 if r.get("session") == session and r.get("role") == role and (r.get("harness") or "") == profile]
-        turns = [{"n": i + 1, "user": (t.get("user") or "")[:2500], "reply": ((t.get("reply") or {}).get("text") or "")[:3500]}
+        turns = [{"n": i + 1, "user": (t.get("user") or "")[:60000], "reply": ((t.get("reply") or {}).get("text") or "")[:60000]}
                  for i, t in enumerate(data.get("turns") or [])]
         manual = read_json(self.state_dir() / "conversations" / name.replace(".json", ".manual.json"), []) or []
         return {"name": name, "profile": profile, "role": role, "session": session, "turns": turns, "manual": manual, "persona": sess.get("persona"),

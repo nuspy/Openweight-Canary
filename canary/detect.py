@@ -15,7 +15,7 @@ URL_RE = re.compile(r"(?i)\b(?:https?|ftp|wss?)://[^\s<>\"'`)\]}]+")
 BLOB_RE = re.compile(r"[A-Za-z0-9+/_-]{40,}={0,2}")
 
 
-def snippet(text: str, needle: str, width: int = 60) -> str:
+def snippet(text: str, needle: str, width: int = 240) -> str:
     pos = text.lower().find(needle.lower())
     if pos < 0:
         return text[: 2 * width]

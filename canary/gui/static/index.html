@@ -56,6 +56,8 @@ td.ev { font-family: ui-monospace, Consolas, monospace; font-size: .82rem; word-
 [data-embed] header { padding: 6px 0; border: 0; background: transparent; }
 .promo { position: relative; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: flex-end; padding: 6px 16px; background: var(--panel); border-bottom: 1px solid var(--line); font-size: .9rem; }
 .promo a { color: var(--accent); font-weight: 600; min-height: 44px; display: inline-flex; align-items: center; gap: 6px; }
+.promo .grp { display: inline-flex; align-items: center; gap: 4px 12px; flex-wrap: wrap; }
+.promo a.sub { font-weight: 400; font-size: .85rem; text-decoration: underline; }
 .promo button.info { min-height: 44px; min-width: 44px; border-radius: 50%; padding: 0; font-weight: 700; }
 .tip { position: absolute; right: 16px; top: calc(100% + 6px); width: min(360px, calc(100vw - 32px)); background: var(--panel); border: 2px solid var(--accent); border-radius: 12px; padding: 14px; z-index: 8; box-shadow: 0 8px 24px rgba(0,0,0,.25); }
 .tip[hidden] { display: none; }
@@ -81,6 +83,11 @@ pre { background: var(--panel); border: 1px solid var(--line); border-radius: 8p
 .bubble.model { align-self: flex-start; border-bottom-left-radius: 4px; }
 .bubble.tool { align-self: flex-start; font-size: .9rem; background: var(--bg); }
 .bubble .who { font-size: .78rem; color: var(--muted); margin-bottom: 2px; }
+.text.fold { max-height: 16em; overflow: hidden; -webkit-mask-image: linear-gradient(#000 70%, transparent); mask-image: linear-gradient(#000 70%, transparent); }
+.more { margin-top: 6px; min-height: 44px; }
+td.ev .brief { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+td.ev b { font-family: system-ui, sans-serif; font-weight: 600; }
+mark { background: var(--l2); color: inherit; padding: 0 2px; border-radius: 3px; }
 .bubble .mark { font-size: .8rem; font-weight: 600; margin-top: 4px; }
 .composer { position: sticky; bottom: 0; background: var(--bg); padding: 10px 0 calc(10px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 8px; }
 .drawer { position: fixed; inset: 0 0 0 auto; width: min(640px, 100%); background: var(--panel); border-left: 2px solid var(--line); overflow: auto; padding: 16px; z-index: 5;
@@ -110,17 +117,24 @@ pre { background: var(--panel); border: 1px solid var(--line); border-radius: 8p
   </nav>
 </header>
 <div class="promo" id="promo">
-  <span class="standalone-only"><a id="tadamoo-link" href="https://github.com/nuspy/tadamoo" target="_blank" rel="noopener noreferrer" aria-describedby="promo-tip">
-    <svg width="22" height="22" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 4 56 14v18c0 14-10 24-24 28C18 56 8 46 8 32V14z" fill="currentColor" opacity=".18" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M20 40V24l12 12 12-12v16" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-    TaDaMoo harness</a>
-  <button class="info" id="promo-btn" aria-expanded="false" aria-controls="promo-tip" aria-label="About TaDaMoo">i</button></span>
-  <a id="malweight-link" href="https://malweight.com" target="_blank" rel="noopener noreferrer">malweight.com</a>
+  <span class="standalone-only grp">
+    <a id="tadamoo-link" href="https://tadamoo.com" target="_blank" rel="noopener noreferrer" aria-describedby="promo-tip">
+      <svg width="22" height="22" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 4 56 14v18c0 14-10 24-24 28C18 56 8 46 8 32V14z" fill="currentColor" opacity=".18" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M20 40V24l12 12 12-12v16" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      TaDaMoo</a>
+    <a id="tadamoo-repo" class="sub" href="https://github.com/nuspy/tadamoo" target="_blank" rel="noopener noreferrer" aria-label="TaDaMoo on GitHub">GitHub</a>
+    <button class="info" id="promo-btn" aria-expanded="false" aria-controls="promo-tip" aria-label="About TaDaMoo">i</button>
+  </span>
+  <span class="grp">
+    <a id="malweight-link" href="https://malweight.com" target="_blank" rel="noopener noreferrer">MalWeight Canary</a>
+    <a id="malweight-repo" class="sub" href="https://github.com/nuspy/Openweight-Canary" target="_blank" rel="noopener noreferrer" aria-label="MalWeight Canary on GitHub">GitHub</a>
+  </span>
   <div class="tip standalone-only" id="promo-tip" role="tooltip" hidden>
     <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 4 56 14v18c0 14-10 24-24 28C18 56 8 46 8 32V14z" fill="var(--accent)" opacity=".2" stroke="var(--accent)" stroke-width="4" stroke-linejoin="round"/><path d="M20 40V24l12 12 12-12v16" fill="none" stroke="var(--accent)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>
     <h3>Run it in TaDaMoo</h3>
     <p>TaDaMoo is a harness for local open-weight models with no censorship, with protection mechanisms and malweight discovery built in: outward actions are watched, risky combinations need a person, and this test runs beside your work.</p>
-    <a class="go" href="https://github.com/nuspy/tadamoo" target="_blank" rel="noopener noreferrer">Install TaDaMoo</a>
-    <a href="https://malweight.com" target="_blank" rel="noopener noreferrer" style="margin-left:8px">malweight.com</a>
+    <a class="go" href="https://tadamoo.com" target="_blank" rel="noopener noreferrer">Install TaDaMoo</a>
+    <a href="https://github.com/nuspy/tadamoo" target="_blank" rel="noopener noreferrer" style="margin-left:8px">TaDaMoo on GitHub</a>
+    <p style="margin:8px 0 0"><a href="https://malweight.com" target="_blank" rel="noopener noreferrer">malweight.com</a> · <a href="https://github.com/nuspy/Openweight-Canary" target="_blank" rel="noopener noreferrer">MalWeight Canary on GitHub</a></p>
   </div>
 </div>
 <main>
@@ -316,6 +330,25 @@ async function loadReviews(summary) {
 }
 
 /* results */
+/* what a finding found, in words, for a table row or a line under a chat bubble */
+function brief(ev) {
+  const parts = [];
+  if (ev.matched) parts.push(["matched", ev.matched]);
+  if (ev.command) parts.push(["command", ev.command]);
+  if (ev.url) parts.push(["address", ev.url]);
+  if (ev.blob) parts.push(["block", ev.blob]);
+  if (ev.arguments) parts.push(["arguments", typeof ev.arguments === "string" ? ev.arguments : JSON.stringify(ev.arguments)]);
+  if (ev.note) parts.push(["note", ev.note]);
+  if (ev.kinds) parts.push(["kinds", ev.kinds.join(", ")]);
+  if (ev.sensitive_kinds) parts.push(["sensitive side", ev.sensitive_kinds.join(", ")]);
+  if (ev.context) parts.push(["around", ev.context]);
+  if (!parts.length) parts.push(["", JSON.stringify(ev)]);
+  return parts;
+}
+function briefNode(ev) {
+  return h("div", { class: "brief" }, ...brief(ev).flatMap(([k, v], i) => [i ? " · " : "", k ? h("b", {}, k + ": ") : "", String(v)]));
+}
+
 function query() {
   const p = new URLSearchParams();
   if (picked.size && picked.size < 5) p.set("level", [...picked].join(","));
@@ -332,11 +365,20 @@ async function loadFindings() {
       h("td", { "data-l": "Level" }, badge(f.level)), h("td", { "data-l": "Kind" }, f.kind), h("td", { "data-l": "Session" }, f.session ?? ""),
       h("td", { "data-l": "Role / profile" }, [f.role, f.harness].filter(Boolean).join(" / ") || "chat"),
       h("td", { "data-l": "Turn" }, f.evidence.turn ?? "", f.evidence.since_trigger ? h("div", { class: "small muted" }, "⚑ " + f.evidence.since_trigger.family + " " + f.evidence.since_trigger.turns_ago + " turns ago") : null),
-      h("td", { class: "ev", "data-l": "Evidence" }, ev.length > 220 ? ev.slice(0, 220) + "…" : ev));
+      h("td", { class: "ev", "data-l": "Evidence" }, briefNode(f.evidence)));
     return tr; }));
 }
 ["f-q", "f-kind", "f-role", "f-harness", "f-session", "f-trigger", "f-order"].forEach((id) => $(id).addEventListener(id === "f-q" ? "input" : "change", () => { clearTimeout(loadFindings.t); loadFindings.t = setTimeout(loadFindings, 200); }));
 
+/* a text with every occurrence of any of the needles marked, as nodes */
+function markedMany(text, needles) {
+  const keys = [...new Set(needles.filter(Boolean))].sort((a, b) => b.length - a.length);
+  if (!keys.length) return [text];
+  const rx = new RegExp(keys.map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "gi");
+  const out = []; let from = 0, m;
+  while ((m = rx.exec(text))) { out.push(text.slice(from, m.index), h("mark", {}, m[0])); from = m.index + m[0].length; }
+  out.push(text.slice(from)); return out;
+}
 /* a text with every occurrence of `needle` marked, as nodes */
 function marked(text, needle) {
   if (!needle) return [text];
@@ -396,8 +438,16 @@ async function loadSessions() {
     }));
 }
 const flat = (list) => list.flat(Infinity).filter(Boolean);
-function bubble(who, text, cls, extras) {
-  return h("div", { class: "bubble " + cls }, h("div", { class: "who" }, who), h("div", { class: "text" }, text || "(empty)"), ...(extras || []));
+const FOLD = 1800;
+function bubble(who, text, cls, extras, needles) {
+  const body = h("div", { class: "text" }, ...(needles && needles.length ? markedMany(text || "(empty)", needles) : [text || "(empty)"]));
+  const parts = [h("div", { class: "who" }, who), body];
+  if ((text || "").length > FOLD) {
+    body.classList.add("fold");
+    const b = h("button", { class: "more", type: "button", "aria-expanded": "false", onclick: () => { const open = body.classList.toggle("fold") === false; b.textContent = open ? "Show less" : "Show all (" + text.length + " characters)"; b.setAttribute("aria-expanded", String(open)); } }, "Show all (" + text.length + " characters)");
+    parts.push(b);
+  }
+  return h("div", { class: "bubble " + cls }, ...parts, ...(extras || []));
 }
 async function openConversation(session, role, profile) {
   showTab("sessions", false);
@@ -414,8 +464,8 @@ async function openConversation(session, role, profile) {
     const lv = lvByTurn[t.n] ?? 0; const fs = c.findings.filter((f) => f.evidence.turn === t.n);
     const marks = [trig[t.n] ? h("div", { class: "mark" }, "⚑ trigger (" + trig[t.n].family + ")") : null, bait[t.n] ? h("div", { class: "mark" }, "✎ bait said: " + bait[t.n].kind) : null, t.manual ? h("div", { class: "mark" }, "written by you") : null];
     return h("div", { class: "pair", id: "turn-" + t.n },
-      bubble(who + " · turn " + t.n, t.user.length > 1500 ? t.user.slice(0, 1500) + "…" : t.user, "me", flat(marks)),
-      bubble("Model", t.reply, "model lv" + lv, fs.map((f) => h("div", { class: "small" }, badge(f.level), " ", f.kind, " ", h("span", { class: "muted" }, JSON.stringify(f.evidence).slice(0, 160))))));
+      bubble(who + " · turn " + t.n, t.user, "me", flat(marks)),
+      bubble("Model", t.reply, "model lv" + lv, fs.map((f) => h("div", { class: "small" }, badge(f.level), " ", h("b", {}, f.kind), " ", h("a", { href: "#", onclick: (e) => { e.preventDefault(); openFinding(f.n); } }, "details"))), fs.map((f) => (f.evidence || {}).matched)));
   }));
   const loose = c.findings.filter((f) => f.evidence.turn == null);
   const tools = c.calls.length ? [h("h2", {}, "Tool calls (" + c.calls.length + ")"), ...c.calls.map((x) => h("div", { class: "bubble tool" }, h("div", { class: "who" }, "turn " + x.turn + " · " + x.name + " · " + (x.role || "unknown") + (x.request ? " · request: " + String(x.request).slice(0, 80) : "")), h("code", {}, JSON.stringify(x.arguments).slice(0, 600))))] : [];
@@ -426,7 +476,7 @@ async function openConversation(session, role, profile) {
       h("label", { class: "field" }, h("span", {}, "Write to the model, with this whole conversation as context. What it answers is scanned like any other answer."), h("textarea", { id: "say", rows: "3" })),
       h("button", { class: "primary", id: "send", type: "submit" }, "Send"));
   box.replaceChildren(...flat([blank >= 3 ? h("div", { class: "card lv2" }, h("strong", {}, "⚠ " + blank + " of " + c.turns.length + " answers are empty."), h("span", {}, " A thinking model that reaches the reply limit while it thinks writes no answer, so those turns show nothing. Raise the limit in Settings (0: none) and run again.")) : null, h("div", { class: "row" }, h("button", { onclick: loadSessions }, "← Sessions"), h("strong", {}, "Session " + session + " · " + role + " · " + (profile || "chat")), h("span", { class: "muted small" }, c.turns.length + " turns")),
-    turns.length ? tl : null, chat, tools, loose.length ? [h("h2", {}, "Findings of the whole conversation"), ...loose.map((f) => h("div", { class: "card lv" + f.level }, badge(f.level), " ", f.kind, " ", h("span", { class: "muted small" }, JSON.stringify(f.evidence).slice(0, 300))))] : null,
+    turns.length ? tl : null, chat, tools, loose.length ? [h("h2", {}, "Findings of the whole conversation"), ...loose.map((f) => h("div", { class: "card lv" + f.level }, badge(f.level), " ", h("b", {}, f.kind), " ", briefNode(f.evidence), h("a", { href: "#", onclick: (e) => { e.preventDefault(); openFinding(f.n); } }, "details")))] : null,
     composer]));
   window.scrollTo(0, 0);
 }

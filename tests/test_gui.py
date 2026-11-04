@@ -59,7 +59,9 @@ def test_the_page_and_the_summary_count_findings_by_level(gui):
     base, _, _ = gui
     status, page = get(base, "/")
     assert status == 200 and b"Openweight Canary" in page
-    assert b"https://malweight.com" in page and b"TaDaMoo" in page and b"Install TaDaMoo" in page
+    for url in (b"https://tadamoo.com", b"https://github.com/nuspy/tadamoo", b"https://malweight.com", b"https://github.com/nuspy/Openweight-Canary"):
+        assert url in page, url
+    assert b"Install TaDaMoo" in page and b"MalWeight Canary" in page
     s = json.loads(get(base, "/api/summary")[1])
     assert s["by_level"] == {"normal": 1, "interesting": 1, "suspicious": 0, "very_suspicious": 1, "critical": 1} and s["sessions"] == 1 and s["chain_ok"]
     assert [lv["colour"] for lv in s["levels"]] == ["white", "green", "yellow", "orange", "red"]
