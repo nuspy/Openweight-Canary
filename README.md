@@ -119,6 +119,10 @@ python -m canary run --harness hermes,goose --max-sessions 2
 - Shell commands the model sends are read for what they do about the network: uploads, storage and drop endpoints,
   probes of what the machine can reach, DNS carrying data, hidden commands, a probe followed by a request. The rules
   are in [docs/shell-rules.md](docs/shell-rules.md).
+  The same command is read as lawful or not from what the request needs, where it goes and which way the data moves.
+- `init --personas` simulates sensitive users (heads of state agencies, officers, financiers, scientists, heads of AI labs and chip
+  companies): one person per session, with a document, requests and research from that person's field. See
+  [docs/personas.md](docs/personas.md).
 
 ## Limits
 

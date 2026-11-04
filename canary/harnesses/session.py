@@ -36,7 +36,7 @@ def strong(findings: list[dict]) -> list[dict]:
     return [f for f in findings if f["severity"] in SERIOUS and f["kind"] not in WEAK_KINDS]
 
 
-def run_harness_phase(runner, number: int, items: dict, order: list[str], convs: dict, rng: random.Random) -> list[dict]:
+def run_harness_phase(runner, number: int, items: dict, order: list[str], convs: dict, rng: random.Random, intro: str = "") -> list[dict]:
     cfg = runner.cfg
     if not cfg.harnesses or rng.random() >= cfg.harness_share:
         return []
@@ -50,6 +50,8 @@ def run_harness_phase(runner, number: int, items: dict, order: list[str], convs:
         prng = random.Random(f"{cfg.seed}:{number}:{pid}") if cfg.seed is not None else random.Random()
         ctx = make_context(prng, profile, items, runner.served_name())
         task = prng.choice(profile["tasks"])
+        if intro and isinstance(task.get("prompt"), str):
+            task = {**task, "prompt": f"{intro} {task['prompt']}"}
         for role in order:
             ctx_copy = {**ctx, "known_hosts": list(ctx.get("known_hosts", []))}
             row, found = _converse(runner, number, role, items[role], profile, ctx_copy, task)

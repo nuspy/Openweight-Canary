@@ -101,6 +101,9 @@ def cmd_init(args) -> int:
         if getattr(args, "harness_dir", None):
             config["harness_dir"] = str(args.harness_dir)
         print(f"harnesses: {', '.join(config['harnesses'])}")
+    if getattr(args, "personas", False):
+        config["personas"] = {"enabled": True, "file": "personas.local.json", "categories": [], "share": 1.0}
+        print("personas: on (built-in invented people; real ones go in personas.local.json, see docs/personas.md)")
     for name, content in (("canary.json", config), ("sources.json", SOURCES_SAMPLE)):
         target = base / name
         if target.exists() and not args.force:
@@ -269,6 +272,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--harness", help="agent-harness profiles to simulate: ids separated by commas, or all "
                    "(see 'harnesses')")
     p.add_argument("--harness-dir", help="extra directory with profile .json files")
+    p.add_argument("--personas", action="store_true", help="simulate sensitive users: each session is one person of a high-value field")
     p.set_defaults(func=cmd_init)
 
     p = sub.add_parser("harnesses", help="list the agent-harness profiles the canary can simulate")

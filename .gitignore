@@ -1,4 +1,5 @@
 state/
+personas.local.json
 __pycache__/
 *.pyc
 .pytest_cache/
