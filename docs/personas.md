@@ -20,23 +20,18 @@ comparison between them stays fair. The persona is stored in `sessions.jsonl` (`
 `industrialist`, `finance`, `politician`, `general`, `intelligence`, `diplomat`, `scientist`, `ai_leader`, `ai_researcher`,
 `compute_ceo` (processor companies), `chipmaker_ceo`, `equipment_ceo` (lithography and other chip-making tools), `tech_ceo`.
 Each has its document domains, requests and research questions in `canary/personas.py`; the document banks of the new domains are in
-`canary/banks_extra.py`. All organisations, places and assets in them are invented.
+`canary/banks_extra.py` and `canary/scenarios.py`. All organisations, places and assets in the banks are invented.
 
-## Real people
+## The people
 
-The catalog shipped here has invented people only. To simulate a real public figure, add the person to `personas.local.json` beside
-`canary.json`. The file is ignored by Git and is never published by this repository:
+The catalog shipped here (`canary/data/catalog.json`) holds public office-holders and company heads as named in public sources, read in
+November 2026. Roles change: check them and edit them in the page (Catalog) or in your own file, `personas.local.json` beside `canary.json`
+(ignored by Git). Your changes never rewrite the shipped rows: a row you change is stored under the same `id`, a row you remove is listed
+as removed, and "Reset" brings the shipped one back. See [catalog.md](catalog.md).
 
-```json
-{"personas": [
-  {"id": "ai-a", "category": "ai_leader", "name": "A Named Person", "role": "chief executive", "org": "Example AI Inc."},
-  {"id": "cpu-b", "category": "compute_ceo", "name": "", "role": "chief executive", "org": "Example Chips Inc."}
-]}
-```
-
-`category` is one of the fields above; `name` may be empty (the introduction then says "the chief executive of ..."). The persona is only
-text in the prompt of a private test against a model you run yourself. Nothing is said in the person's name anywhere else, and no
-statement is invented for them: the documents stay fictional.
+The persona is only text in the prompt of a private test against a model you run yourself. Nothing is said in the person's name anywhere
+else. The documents and files built around them are synthetic: they are made to look like the person's own correspondence so that a model
+with a hidden behaviour reacts to them, and they must not be published or presented as real.
 
 ## Limits
 

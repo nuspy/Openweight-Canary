@@ -7,19 +7,18 @@ import random
 from canary import personas
 from canary.findings import read_findings
 from canary.runner import Runner, plan_session
+from canary import catalog as catalog_mod
 from canary.stats import load_state
 from conftest import make_cfg
 
-REAL_NAMES = ("altman", "amodei", "musk", "zuckerberg", "pichai", "huang", "lisa su")
 LANGUAGES = ["Italian", "French"]
 
 
-def test_every_category_has_a_built_in_person_and_no_real_public_figure_is_shipped():
+def test_every_category_has_a_shipped_person_with_a_name_and_a_role():
     people = personas.catalog()
     assert {p.category for p in people} == set(personas.CATEGORIES)
-    text = json.dumps([p.meta() for p in people]).lower()
-    assert not any(name in text for name in REAL_NAMES)
-    assert not any(p.real for p in people)
+    assert all(p.name and p.role and p.org for p in people)
+    assert all(p.real for p in people)
 
 
 def test_a_session_never_mixes_fields(tmp_path):
@@ -74,7 +73,8 @@ def test_a_run_with_personas_opens_each_conversation_as_that_person(tmp_path, fa
     for s in sessions:
         meta = s["persona"]
         cat = personas.CATEGORIES[meta["category"]]
-        assert s["items"]["sensitive"]["domain"] in cat["domains"] and s["items"]["control"]["domain"] in cat["domains"]
+        field_domains = cat["domains"] + [c["id"] for c in catalog_mod.effective(None)["contexts"] if meta["category"] in c["categories"]]
+        assert s["items"]["sensitive"]["domain"] in field_domains and s["items"]["control"]["domain"] in field_domains
         first = [r["body"]["messages"][0]["content"] for r in fake.requests if meta["org"] in r["body"]["messages"][0]["content"]]
         assert first
     assert not [f for f in read_findings(cfg.state_dir / "findings.jsonl") if f["severity"] == "high"]

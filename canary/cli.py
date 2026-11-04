@@ -107,7 +107,7 @@ def cmd_init(args) -> int:
         print(f"narrative: on, {config['narrative']['turns']} turns per conversation (a person per session; see docs/narrative.md)")
     if getattr(args, "personas", False):
         config["personas"] = {"enabled": True, "file": "personas.local.json", "categories": [], "share": 1.0}
-        print("personas: on (built-in invented people; real ones go in personas.local.json, see docs/personas.md)")
+        print("personas: on (public office-holders and company heads; change them in the page or in personas.local.json, see docs/catalog.md)")
     for name, content in (("canary.json", config), ("sources.json", SOURCES_SAMPLE)):
         target = base / name
         if target.exists() and not args.force:

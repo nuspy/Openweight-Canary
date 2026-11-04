@@ -59,6 +59,7 @@ def test_the_page_and_the_summary_count_findings_by_level(gui):
     base, _, _ = gui
     status, page = get(base, "/")
     assert status == 200 and b"Openweight Canary" in page
+    assert b"https://malweight.com" in page and b"TaDaMoo" in page and b"Install TaDaMoo" in page
     s = json.loads(get(base, "/api/summary")[1])
     assert s["by_level"] == {"normal": 1, "interesting": 1, "suspicious": 0, "very_suspicious": 1, "critical": 1} and s["sessions"] == 1 and s["chain_ok"]
     assert [lv["colour"] for lv in s["levels"]] == ["white", "green", "yellow", "orange", "red"]
@@ -182,3 +183,51 @@ def test_an_empty_message_or_a_missing_conversation_is_refused(gui):
     base, _, _ = gui
     assert post(base, "/api/chat", {"session": 1, "role": "sensitive", "text": "  "})[0] == 400
     assert post(base, "/api/chat", {"session": 9, "role": "sensitive", "text": "hi"})[0] == 400
+
+
+def test_the_catalog_can_be_read_changed_removed_and_reset(gui):
+    base, _, tmp = gui
+    people = json.loads(get(base, "/api/catalog?kind=personas")[1])
+    assert any(p["builtin"] and p["name"] == "Sam Altman" for p in people)
+    code, body = post(base, "/api/catalog/save", {"kind": "personas", "row": {"category": "ai_leader", "name": "A New Person", "role": "chief executive", "org": "Example AI"}})
+    assert code == 200 and body["row"]["id"] == "a-new-person"
+    code, body = post(base, "/api/catalog/save", {"kind": "personas", "row": {"id": "ai-1", "category": "ai_leader", "name": "Sam Altman", "role": "co-founder", "org": "OpenAI"}})
+    rows = {p["id"]: p for p in json.loads(get(base, "/api/catalog?kind=personas")[1])}
+    assert rows["ai-1"]["role"] == "co-founder" and rows["ai-1"]["edited"] and not rows["a-new-person"]["builtin"]
+    assert post(base, "/api/catalog/reset", {"kind": "personas", "id": "ai-1"})[0] == 200
+    assert {p["id"]: p for p in json.loads(get(base, "/api/catalog?kind=personas")[1])}["ai-1"]["role"] == "chief executive"
+    assert post(base, "/api/catalog/delete", {"kind": "personas", "id": "ai-2"})[0] == 200
+    assert "ai-2" not in {p["id"] for p in json.loads(get(base, "/api/catalog?kind=personas")[1])}
+    assert post(base, "/api/catalog/reset", {"kind": "personas"})[0] == 200
+    after = {p["id"] for p in json.loads(get(base, "/api/catalog?kind=personas")[1])}
+    assert "ai-2" in after and "a-new-person" in after
+
+
+def test_a_bad_catalog_row_is_refused(gui):
+    base, _, _ = gui
+    assert post(base, "/api/catalog/save", {"kind": "personas", "row": {"category": "nope", "role": "x", "org": "y"}})[0] == 400
+    assert post(base, "/api/catalog/save", {"kind": "figures", "row": {"side": "china", "name": ""}})[0] == 400
+    assert post(base, "/api/catalog/save", {"kind": "contexts", "row": {"label": "x", "office": "X", "actors": ["only one"]}})[0] == 400
+    assert post(base, "/api/catalog/delete", {"kind": "personas", "id": "no-such"})[0] == 400
+
+
+def test_a_context_is_added_and_used_for_documents(gui):
+    base, _, _ = gui
+    row = {"label": "Test context", "office": "TST", "categories": ["general"], "sides": ["usa"],
+           **{k: [f"{k} one", f"{k} two"] for k in ("actors", "assets", "places", "topics", "verbs", "past", "types")}}
+    code, body = post(base, "/api/catalog/save", {"kind": "contexts", "row": row})
+    assert code == 200
+    from canary.generator import BANKS
+    json.loads(get(base, "/api/catalog?kind=contexts")[1])
+    assert body["row"]["id"] in BANKS and BANKS[body["row"]["id"]]["office"] == "TST"
+
+
+def test_the_page_can_be_mounted_under_a_prefix_inside_another_application(gui):
+    from canary.gui.server import handle
+    _, _, tmp = gui
+    mounted = App(tmp / "canary.json", prefix="/canary", check_host=False)
+    code, body, ctype, _ = handle(mounted, "GET", "/canary/api/summary", {"Host": "app.local:7242"})
+    assert code == 200 and json.loads(body)["sessions"] == 1
+    code, body, ctype, _ = handle(mounted, "GET", "/canary/", {"Host": "app.local:7242"})
+    assert code == 200 and ctype.startswith("text/html") and b'"api/' in body and b'"/api/' not in body
+    assert handle(mounted, "POST", "/canary/api/stop", {"Host": "app.local"}, b"{}")[0] == 403

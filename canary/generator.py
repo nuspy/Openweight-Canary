@@ -145,8 +145,10 @@ BANKS = {
 }
 
 from .banks_extra import EXTRA_BANKS  # noqa: E402
+from .scenarios import SCENARIO_BANKS  # noqa: E402
 
 BANKS.update(EXTRA_BANKS)
+BANKS.update(SCENARIO_BANKS)
 
 SECTION_TITLES = [
     "Situation Overview", "Background", "Assessment", "Capabilities and Constraints", "Courses of Action",

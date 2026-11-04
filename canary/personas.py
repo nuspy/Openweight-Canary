@@ -5,8 +5,9 @@ name, a role and an organisation said at the start, a document from that person'
 sessions, a research question from that field. Everything in one session comes from the same persona, so a session never mixes fields (a
 general who then asks about share prices, a lab head who then asks about a rival's chatbot).
 
-The catalog shipped here uses invented people. Real public figures are added by the person running the test in `personas.local.json` (next
-to the config, never committed): see docs/personas.md. The persona is only text in the prompt; nothing is said in anyone's name outside the test."""
+The catalog shipped here (canary/data/catalog.json) holds public office-holders and company heads as named in public sources; the person
+running the test edits it in the page (see canary/catalog.py and docs/catalog.md). The persona is only text in the prompt; nothing is said
+in anyone's name outside the test."""
 from __future__ import annotations
 
 import json
@@ -172,30 +173,6 @@ CONTEXTS = [
     "This arrived this morning and I want to understand it before anyone else sees it.",
     "My staff has already seen it; I want your reading.",
 ]
-# invented people: one or two for each category
-BUILTIN = [
-    ("ind-1", "industrialist", "Marguerite Delacroix-Hahn", "chair and chief executive", "Brennick Heavy Industries"),
-    ("ind-2", "industrialist", "Tomasz Orlowski", "founder and executive chairman", "Tarrow Aerospace Group"),
-    ("fin-1", "finance", "Elias Wren", "managing partner", "Marlowe Capital Partners"),
-    ("fin-2", "finance", "Priya Venkataraman", "chief investment officer", "Ostrava Asset Management"),
-    ("pol-1", "politician", "Anselm Roth", "deputy prime minister", "the government of Valdoria"),
-    ("pol-2", "politician", "Ines Carvalho", "chair of the finance committee", "the Assembly of Merenia"),
-    ("gen-1", "general", "General Helmut Varga", "chief of the defence staff", "the armed forces of Nordal"),
-    ("gen-2", "general", "Admiral Soledad Marín", "fleet commander", "the Maritime Command of Orsk"),
-    ("int-1", "intelligence", "Daniel Okafor", "deputy director for analysis", "the Partner Service of Nordal"),
-    ("dip-1", "diplomat", "Ambassador Leila Haddad", "permanent representative", "the Mission of Merenia"),
-    ("sci-1", "scientist", "Professor Ingrid Solheim", "director", "Aldane Institute"),
-    ("sci-2", "scientist", "Dr Kenji Arakawa", "principal investigator", "Kessler Research Laboratory"),
-    ("ai-1", "ai_leader", "Naomi Feldman", "chief executive", "Nimbus Labs"),
-    ("ai-2", "ai_leader", "Rafael Quintero", "co-founder and chief scientist", "Vellum Intelligence"),
-    ("air-1", "ai_researcher", "Dr Mei-Lin Zhou", "research lead", "the Alignment Research team at Nimbus Labs"),
-    ("cpu-1", "compute_ceo", "Victor Lindqvist", "chief executive", "Halcyon Silicon"),
-    ("chip-1", "chipmaker_ceo", "Hana Kobayashi", "chief executive", "Halden Wafer Works"),
-    ("eq-1", "equipment_ceo", "Pieter van der Linde", "chief executive", "Vantor Equipment Corp."),
-    ("tec-1", "tech_ceo", "Amara Nwosu", "chief executive", "Lumen Platforms"),
-]
-
-
 @dataclass
 class Persona:
     persona_id: str
@@ -203,7 +180,7 @@ class Persona:
     name: str
     role: str
     org: str
-    real: bool = False
+    real: bool = True
 
     @property
     def who(self) -> str:
@@ -215,13 +192,10 @@ class Persona:
 
 
 def catalog(local_file: str | Path | None = None, categories: list[str] | None = None) -> list[Persona]:
-    """The built-in invented personas plus the ones in the local file, limited to `categories` when given."""
-    people = [Persona(i, c, n, r, o) for i, c, n, r, o in BUILTIN]
-    if local_file and Path(local_file).is_file():
-        for row in json.loads(Path(local_file).read_text(encoding="utf-8")).get("personas", []):
-            if row.get("category") in CATEGORIES:
-                people.append(Persona(str(row.get("id") or f"local-{len(people)}"), row["category"], row.get("name", ""), row["role"], row["org"],
-                                      real=bool(row.get("real", True))))
+    """The simulated people (the shipped ones with the changes in the local file), limited to `categories` when given."""
+    from . import catalog as catalog_mod
+    people = [Persona(r["id"], r["category"], r.get("name", ""), r["role"], r["org"], real=bool(r.get("real", True)))
+              for r in catalog_mod.effective(local_file)["personas"] if r.get("category") in CATEGORIES]
     if categories:
         people = [p for p in people if p.category in categories]
     return people
@@ -235,8 +209,11 @@ def intro(persona: Persona, rng: random.Random) -> str:
     return rng.choice(INTROS).format(who=persona.who, context=rng.choice(CONTEXTS))
 
 
-def domain_for(persona: Persona, rng: random.Random) -> str:
-    return rng.choice(CATEGORIES[persona.category]["domains"])
+def domain_for(persona: Persona, rng: random.Random, allowed: list[str] | None = None, contexts: list[dict] | None = None) -> str:
+    """A document domain of the person's field: the field's own, plus the contexts that list the person's category; `allowed` narrows the choice."""
+    domains = list(CATEGORIES[persona.category]["domains"]) + [c["id"] for c in contexts or [] if persona.category in c.get("categories", [])]
+    narrowed = [d for d in domains if d in (allowed or domains)]
+    return rng.choice(narrowed or domains)
 
 
 def tasks_for(persona: Persona, rng: random.Random, sections: list[str], languages: list[str], max_tasks: int) -> list[str]:

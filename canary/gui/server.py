@@ -18,7 +18,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from .. import launch, personas
+from .. import catalog, launch, personas, scenarios
 from ..config import ConfigError, load_config, sample_config
 from ..findings import read_findings, verify_chain
 from ..harnesses import load_profiles
@@ -45,11 +45,14 @@ GOALS = [
     {"id": "harness", "label": "Tools: what the model does under an agent harness (shell, files, mail, calendar)"},
     {"id": "narrative", "label": "Long story: triggers early, in the middle and late"},
     {"id": "personas", "label": "Sensitive users: one simulated person per session"},
+    {"id": "workspace", "label": "Fake computer: folders and files of the session's context, ordinary and trigger, for the harness to find"},
 ]
 
 
 class App:
-    def __init__(self, config_path: str | Path, state_dir: str | Path | None = None):
+    def __init__(self, config_path: str | Path, state_dir: str | Path | None = None, prefix: str = "", check_host: bool = True):
+        self.prefix = prefix.rstrip("/")
+        self.check_host = check_host
         self.path = Path(config_path).resolve()
         self.override = Path(state_dir).resolve() if state_dir else None
         self.lock = threading.Lock()
@@ -106,6 +109,31 @@ class App:
         if self.path.exists() and (self.raw().get("target") or {}).get("api_key"):
             keep["target"]["api_key"] = self.raw()["target"]["api_key"]
         return self.save_config(keep)
+
+    # -- the editable catalogs
+    def catalog_file(self) -> Path:
+        try:
+            return Path(self.cfg().personas["file"])
+        except ConfigError:
+            return self.path.parent / (self.raw().get("personas") or {}).get("file", "personas.local.json")
+
+    def catalog_rows(self, kind: str) -> list[dict]:
+        if kind not in catalog.KINDS:
+            raise ValueError("unknown catalog")
+        return catalog.effective(self.catalog_file())[kind]
+
+    def catalog_change(self, action: str, body: dict) -> dict:
+        kind = str(body.get("kind") or "")
+        try:
+            if action == "save":
+                return {"ok": True, "row": catalog.upsert(self.catalog_file(), kind, body.get("row") or {})}
+            if action == "delete":
+                catalog.delete(self.catalog_file(), kind, str(body.get("id") or ""))
+            elif action == "reset":
+                catalog.reset(self.catalog_file(), kind, body.get("id") or None)
+        except catalog.CatalogError as exc:
+            raise ValueError(str(exc)) from exc
+        return {"ok": True}
 
     # -- reading results
     def levels_for(self, rows: list[dict]) -> list[dict]:
@@ -273,6 +301,9 @@ class App:
                 "vendors": [{"id": v["id"], "name": v["name"]} for v in cat.vendors.values()],
                 "harnesses": [{"id": p["id"], "name": p["name"], "kind": p["kind"], "status": p["status"]} for p in profiles.values()],
                 "persona_categories": [{"id": k, "label": v["label"]} for k, v in personas.CATEGORIES.items()],
+                "contexts": [{"id": c["id"], "label": c["label"]} for c in catalog.effective(self.catalog_file())["contexts"]]
+                            + [{"id": d, "label": d.replace("_", " ")} for d in sorted({d for v in personas.CATEGORIES.values() for d in v["domains"]})],
+                "sides": [{"id": x, "label": x} for x in scenarios.SIDES],
                 "triggers": TRIGGER_FAMILIES, "goals": GOALS}
 
     # -- export
@@ -336,92 +367,91 @@ def _count_alerts(sd: Path) -> int:
     return sum(1 for line in p.read_text(encoding="utf-8").splitlines() if line.startswith("## ")) if p.exists() else 0
 
 
+POSTS = {"/api/config": lambda app, b: app.save_config(b),
+         "/api/runtime": lambda app, b: app.apply_runtime(b["runtime"], b.get("model", ""), b.get("vendor"), b.get("base_url")),
+         "/api/start": lambda app, b: app.start(), "/api/stop": lambda app, b: app.stop(), "/api/analyse": lambda app, b: app.analyse(b),
+         "/api/chat": lambda app, b: app.chat(b),
+         "/api/catalog/save": lambda app, b: app.catalog_change("save", b), "/api/catalog/delete": lambda app, b: app.catalog_change("delete", b),
+         "/api/catalog/reset": lambda app, b: app.catalog_change("reset", b)}
+
+
+def handle(app: App, method: str, raw_path: str, headers, body: bytes = b"") -> tuple[int, bytes, str, dict]:
+    """One request: (status, body, content type, extra headers). The standalone server calls it, and so can any host that mounts the page under a prefix
+    (`App(prefix="/canary", check_host=False)`): the host then does its own address check."""
+    def ok(data, code=200):
+        return code, json.dumps(data, ensure_ascii=False).encode("utf-8"), "application/json", {}
+
+    if app.check_host and (headers.get("Host") or "").split(":")[0] not in ("127.0.0.1", "localhost"):
+        return ok({}, 403)
+    url = urlparse(raw_path)
+    path = url.path[len(app.prefix):] if app.prefix and url.path.startswith(app.prefix) else url.path
+    q = parse_qs(url.query)
+    try:
+        if method == "POST":
+            if headers.get("X-Canary-GUI") != "1":
+                return ok({}, 403)
+            if len(body) > MAX_BODY:
+                return ok({"error": "body too large"}, 413)
+            fn = POSTS.get(path)
+            return ok(fn(app, json.loads(body or b"{}"))) if fn else ok({"error": "not found"}, 404)
+        if path in ("", "/", "/index.html"):
+            return 200, (STATIC / "index.html").read_bytes(), "text/html; charset=utf-8", {}
+        if path == "/api/summary":
+            return ok(app.summary())
+        if path == "/api/findings":
+            return ok(app.findings(q))
+        if path.startswith("/api/finding/"):
+            r = app.finding(int(path.rsplit("/", 1)[1]))
+            return ok(r) if r else ok({"error": "no such finding"}, 404)
+        if path == "/api/sessions":
+            return ok(app.sessions())
+        if path == "/api/conversation":
+            r = app.conversation(int(q["session"][0]), q.get("role", ["sensitive"])[0], q.get("profile", [""])[0])
+            return ok(r) if r else ok({"error": "no such conversation"}, 404)
+        if path == "/api/config":
+            return ok(app.config_view())
+        if path == "/api/options":
+            return ok(app.options())
+        if path == "/api/catalog":
+            return ok(app.catalog_rows(q.get("kind", ["personas"])[0]))
+        if path == "/api/export":
+            data, ctype, name = app.export(q.get("format", ["json"])[0], q)
+            return 200, data, ctype, {"Content-Disposition": f'attachment; filename="{name}"'}
+        if path == "/api/alerts":
+            p = app.state_dir() / "ALERTS.md"
+            return 200, (p.read_bytes() if p.exists() else b"no alerts"), "text/plain; charset=utf-8", {}
+    except (ValueError, KeyError, ConfigError, OSError) as exc:
+        return ok({"error": str(exc)}, 400)
+    return ok({"error": "not found"}, 404)
+
+
 class Handler(BaseHTTPRequestHandler):
     app: App
-    port: int
     server_version = "canary-gui"
 
     def log_message(self, *args):
         pass
 
-    def _host_ok(self) -> bool:
-        return (self.headers.get("Host") or "").split(":")[0] in ("127.0.0.1", "localhost")
-
-    def _send(self, code: int, body: bytes, ctype: str = "application/json", extra: dict | None = None) -> None:
+    def _serve(self, method: str) -> None:
+        n = int(self.headers.get("Content-Length") or 0) if method == "POST" else 0
+        body = self.rfile.read(n) if 0 < n <= MAX_BODY else b"x" * (MAX_BODY + 1) if n > MAX_BODY else b""
+        code, data, ctype, extra = handle(self.app, method, self.path, self.headers, body)
         self.send_response(code)
         self.send_header("Content-Type", ctype)
-        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'")
-        for k, v in (extra or {}).items():
+        for k, v in extra.items():
             self.send_header(k, v)
         self.end_headers()
-        self.wfile.write(body)
-
-    def _json(self, data, code: int = 200) -> None:
-        self._send(code, json.dumps(data, ensure_ascii=False).encode("utf-8"))
+        self.wfile.write(data)
 
     def do_GET(self):
-        if not self._host_ok():
-            return self._send(403, b"{}")
-        url = urlparse(self.path)
-        q = parse_qs(url.query)
-        app = self.app
-        try:
-            if url.path in ("/", "/index.html"):
-                return self._send(200, (STATIC / "index.html").read_bytes(), "text/html; charset=utf-8")
-            if url.path == "/api/summary":
-                return self._json(app.summary())
-            if url.path == "/api/findings":
-                return self._json(app.findings(q))
-            if url.path.startswith("/api/finding/"):
-                r = app.finding(int(url.path.rsplit("/", 1)[1]))
-                return self._json(r, 200) if r else self._json({"error": "no such finding"}, 404)
-            if url.path == "/api/sessions":
-                return self._json(app.sessions())
-            if url.path == "/api/conversation":
-                r = app.conversation(int(q["session"][0]), q.get("role", ["sensitive"])[0], q.get("profile", [""])[0])
-                return self._json(r, 200) if r else self._json({"error": "no such conversation"}, 404)
-            if url.path == "/api/config":
-                return self._json(app.config_view())
-            if url.path == "/api/options":
-                return self._json(app.options())
-            if url.path == "/api/export":
-                body, ctype, name = app.export(q.get("format", ["json"])[0], q)
-                return self._send(200, body, ctype, {"Content-Disposition": f'attachment; filename="{name}"'})
-            if url.path == "/api/alerts":
-                p = app.state_dir() / "ALERTS.md"
-                return self._send(200, (p.read_bytes() if p.exists() else b"no alerts"), "text/plain; charset=utf-8")
-        except (ValueError, KeyError, ConfigError) as exc:
-            return self._json({"error": str(exc)}, 400)
-        self._json({"error": "not found"}, 404)
+        self._serve("GET")
 
     def do_POST(self):
-        if not self._host_ok() or self.headers.get("X-Canary-GUI") != "1":
-            return self._send(403, b"{}")
-        n = int(self.headers.get("Content-Length") or 0)
-        if n > MAX_BODY:
-            return self._json({"error": "body too large"}, 413)
-        try:
-            body = json.loads(self.rfile.read(n) or b"{}")
-            path = urlparse(self.path).path
-            app = self.app
-            if path == "/api/config":
-                return self._json(app.save_config(body))
-            if path == "/api/runtime":
-                return self._json(app.apply_runtime(body["runtime"], body.get("model", ""), body.get("vendor"), body.get("base_url")))
-            if path == "/api/start":
-                return self._json(app.start())
-            if path == "/api/stop":
-                return self._json(app.stop())
-            if path == "/api/analyse":
-                return self._json(app.analyse(body))
-            if path == "/api/chat":
-                return self._json(app.chat(body))
-        except (ValueError, KeyError, ConfigError, OSError) as exc:
-            return self._json({"error": str(exc)}, 400)
-        self._json({"error": "not found"}, 404)
+        self._serve("POST")
 
 
 def serve(config_path: str | Path, port: int = 8765, open_browser: bool = True, state_dir: str | Path | None = None) -> int:

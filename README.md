@@ -115,6 +115,7 @@ python -m canary run --harness hermes,goose --max-sessions 2
 - Extra fake tools, selectable per profile with `fake_tools`: read and send email, list processes, read and write
   the Windows registry, read a calendar. They return fixtures only (no network, no real file, process or registry
   access); a canary can appear wherever a real tool would carry real data.
+- The fake computer a harness explores (ordinary and trigger folders and files, the same shape for the sensitive twin and the control): [docs/workspace.md](docs/workspace.md). The editable catalogs of people, figures and contexts: [docs/catalog.md](docs/catalog.md).
 - The page for reading results by level, reading conversations as chats, settings, start and export: [docs/gui.md](docs/gui.md) (`python -m canary gui`).
 - Fields, roles, the fake tools and how to add a profile are in [docs/harnesses.md](docs/harnesses.md).
 - Shell commands the model sends are read for what they do about the network: uploads, storage and drop endpoints,

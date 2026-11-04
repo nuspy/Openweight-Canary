@@ -8,6 +8,7 @@ import re
 from ..detect import classify_shell, norm_path, outside_project, tool_commands, tool_paths, tool_urls
 from ..util import host_of
 from .fixtures import Fixtures, document_facts
+from .vfs import Tree
 
 NOT_FOUND = "Error: file not found: {path}"
 OUTSIDE = "Error: path is outside the workspace: {path}"
@@ -27,8 +28,13 @@ class FakeWorld:
         self.docs = {norm_path(p, ctx["cwd"]).lower(): (p, t) for p, t in docs.items()}
         for path, text in ctx.get("decoys", {}).items():
             self.docs.setdefault(norm_path(path, ctx["cwd"]).lower(), (path, text))
+        ws = ctx.get("workspace")
+        for path, text in (ws.docs if ws else {}).items():
+            self.docs.setdefault(norm_path(path, ctx["cwd"]).lower(), (path, text))
         self.read_format = read_format
         self.recorded: list[dict] = []
+        self.has_workspace = bool(ws)
+        self.touched: set[str] = set()
 
     # -- helpers
 
@@ -36,7 +42,15 @@ class FakeWorld:
         return norm_path(raw, self.ctx["cwd"])
 
     def _lookup(self, raw: str):
-        return self.docs.get(self._path(raw).lower())
+        hit = self.docs.get(self._path(raw).lower())
+        if hit:
+            self.touched.add(hit[0])
+        return hit
+
+    def tree(self) -> Tree:
+        files = {p: len(t.encode("utf-8")) for p, t in self.docs.values()}
+        files.update({f: 0 for f in self.ctx["files"] if f not in files})
+        return Tree(files, self.ctx["user"], self.ctx["date"])
 
     def format_file(self, path: str, text: str) -> str:
         text = text[:MAX_READ]
@@ -67,6 +81,11 @@ class FakeWorld:
         return "\n\n".join(out) if len(out) > 1 else out[0]
 
     def listing(self, args) -> str:
+        pattern_given = any(k in (args or {}) and isinstance(v, str) and v not in ("", "*", "**/*") for k, v in (args or {}).items()
+                            if k in ("pattern", "glob", "include", "query"))
+        if self.has_workspace and not pattern_given:
+            base = next(iter(tool_paths(args)), ".")
+            return self.tree().one_level(self._path(base) if base else ".")
         names = sorted({p for p, _ in self.docs.values()} | set(self.ctx["files"]))
         pattern = next((v for k, v in (args or {}).items()
                         if k in ("pattern", "glob", "include", "query") and isinstance(v, str)), "")
@@ -105,6 +124,12 @@ class FakeWorld:
             return f"curl: (6) Could not resolve host: {host}\n[exit code: 6]"
         if first in ("pwd", "cd"):
             return self.ctx["cwd"]
+        if self.has_workspace and first in ("ls", "dir"):
+            return self.tree().ls(cmd.strip().split("\n")[0])
+        if self.has_workspace and first == "find":
+            return self.tree().find(cmd.strip().split("\n")[0])
+        if self.has_workspace and first == "tree":
+            return self.tree().tree(cmd.strip().split("\n")[0])
         if first in ("ls", "dir", "tree"):
             return self.listing({})
         if cmd.startswith("git status"):
@@ -114,6 +139,9 @@ class FakeWorld:
                 hit = self._lookup(raw)
                 if hit:
                     return hit[1][:MAX_READ] if first != "wc" else f"{len(hit[1].splitlines())} {hit[0]}"
+            if self.has_workspace and first in ("grep", "rg"):
+                words = [t for t in cmd.split()[1:] if not t.startswith("-")]
+                return self.grep({"pattern": words[0].strip("\"'")}) if words else "No matches found"
             return "No such file or directory"
         return "[exit code: 0]"
 

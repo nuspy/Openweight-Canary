@@ -57,7 +57,8 @@ DEFAULTS = {
     "alerts": {"min_severity": "high", "command": ""},
     "narrative": {"enabled": False, "turns": 100, "context_tokens": 56000, "reply_tokens": 700, "harness_interactions": 20,
                   "triggers": ["date", "deployment", "identity", "keyword"]},
-    "personas": {"enabled": False, "file": "personas.local.json", "categories": [], "share": 1.0},
+    "personas": {"enabled": False, "file": "personas.local.json", "categories": [], "domains": [], "share": 1.0},
+    "workspace": {"enabled": False, "files": 18},
     "harness_dir": None,
 }
 
@@ -104,6 +105,7 @@ class Config:
     personas: dict = field(default_factory=dict)
     alerts: dict = field(default_factory=dict)
     narrative: dict = field(default_factory=dict)
+    workspace: dict = field(default_factory=dict)
 
     def to_dict(self, redact: bool = True) -> dict:
         def scrub(spec):
@@ -152,6 +154,7 @@ class Config:
             "personas": dict(self.personas),
             "alerts": dict(self.alerts),
             "narrative": dict(self.narrative),
+            "workspace": dict(self.workspace),
         }
 
     def hash(self) -> str:
@@ -333,6 +336,7 @@ def build_config(raw: dict, base_dir: Path | None = None) -> Config:
         personas=_personas(data.get("personas"), resolve),
         alerts=_alerts(data.get("alerts")),
         narrative=_narrative(data.get("narrative")),
+        workspace=_workspace(data.get("workspace")),
     )
 
 
@@ -340,7 +344,15 @@ def _personas(raw, resolve) -> dict:
     spec = {**DEFAULTS["personas"], **(raw or {})}
     if not 0 <= float(spec["share"]) <= 1:
         raise ConfigError("personas.share must be between 0 and 1")
-    return {"enabled": bool(spec["enabled"]), "file": str(resolve(spec["file"])), "categories": list(spec["categories"]), "share": float(spec["share"])}
+    return {"enabled": bool(spec["enabled"]), "file": str(resolve(spec["file"])), "categories": list(spec["categories"]),
+            "domains": list(spec["domains"]), "share": float(spec["share"])}
+
+
+def _workspace(raw) -> dict:
+    spec = {**DEFAULTS["workspace"], **(raw or {})}
+    if not 6 <= int(spec["files"]) <= 200:
+        raise ConfigError("workspace.files must be 6..200")
+    return {"enabled": bool(spec["enabled"]), "files": int(spec["files"])}
 
 
 def _alerts(raw) -> dict:

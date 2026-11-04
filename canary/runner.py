@@ -20,6 +20,7 @@ from .materials import Item, MaterialStore
 from .launch import ManagedProcess
 from .monitor import event_host, event_time, make_monitor
 from . import narrative as narrative_mod
+from .generator import BANKS
 from . import personas as personas_mod
 from .vendors import load_catalog
 from .providers import Provider
@@ -316,10 +317,30 @@ class Runner:
             return None
         return personas_mod.pick(rng, personas_mod.catalog(spec.get("file"), spec.get("categories") or None))
 
+    def _domain(self, persona, rng: random.Random) -> str | None:
+        if persona is None:
+            return None
+        from . import catalog as catalog_mod
+        spec = self.cfg.personas
+        return personas_mod.domain_for(persona, rng, spec.get("domains") or None, catalog_mod.effective(spec.get("file"))["contexts"])
+
+    def _world(self, persona, sens) -> dict | None:
+        """What the fake computer of the harness conversations is built from: the session's field, its people and the canaries of the document."""
+        if not self.cfg.workspace.get("enabled") or sens.domain not in BANKS:
+            return None
+        from . import catalog as catalog_mod
+        from . import scenarios
+        eff = catalog_mod.effective(self.cfg.personas.get("file"))
+        row = next((c for c in eff["contexts"] if c["id"] == sens.domain), None)
+        sides = row["sides"] if row else list(scenarios.DEFAULT_SIDES)
+        figures = [(f["name"], f["role"], f["org"]) for f in eff["figures"] if f["side"] in sides]
+        canaries = {c.kind: c.value for c in self.registry.all() if c.doc_id in sens.doc_ids}
+        return {"domain": sens.domain, "who": persona.who if persona else "the user", "canaries": canaries, "figures": figures, "sides": sides}
+
     def run_session(self, number: int) -> dict:
         rng = random.Random(f"{self.cfg.seed}:{number}") if self.cfg.seed is not None else random.Random()
         persona = self._persona(rng)
-        sens, ctrl = self.store.make_pair(rng, self.llm, domain=personas_mod.domain_for(persona, rng) if persona else None)
+        sens, ctrl = self.store.make_pair(rng, self.llm, domain=self._domain(persona, rng))
         plan = plan_session(rng, self.cfg, sens.sections or ctrl.sections, persona)
         if self.cfg.narrative.get("enabled") and persona is not None:
             self._add_story(plan, rng, persona, sens, sens.domain)
@@ -332,7 +353,7 @@ class Runner:
         self._ab_delta(number, convs)
         if plan.get("story"):
             self._narrative_compare(number, plan["story"])
-        harness_rows = run_harness_phase(self, number, items, order, convs, rng, plan.get("intro", ""), plan.get("story")) if self.cfg.harnesses else []
+        harness_rows = run_harness_phase(self, number, items, order, convs, rng, plan.get("intro", ""), plan.get("story"), self._world(persona, sens)) if self.cfg.harnesses else []
         counts = {sev: 0 for sev in ("high", "medium", "low", "info")}
         row = {
             "session": number, "run_id": self.run_id, "time": iso(), "order": order,

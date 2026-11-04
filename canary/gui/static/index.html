@@ -51,6 +51,18 @@ table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
 tbody tr { cursor: pointer; } tbody tr:hover { outline: 2px solid var(--focus); outline-offset: -2px; }
 td.ev { font-family: ui-monospace, Consolas, monospace; font-size: .82rem; word-break: break-word; max-width: 420px; }
+[data-embed] .standalone-only, [data-embed] h1 { display: none; }
+[data-embed] header { padding: 6px 0; border: 0; background: transparent; }
+.promo { position: relative; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: flex-end; padding: 6px 16px; background: var(--panel); border-bottom: 1px solid var(--line); font-size: .9rem; }
+.promo a { color: var(--accent); font-weight: 600; min-height: 44px; display: inline-flex; align-items: center; gap: 6px; }
+.promo button.info { min-height: 44px; min-width: 44px; border-radius: 50%; padding: 0; font-weight: 700; }
+.tip { position: absolute; right: 16px; top: calc(100% + 6px); width: min(360px, calc(100vw - 32px)); background: var(--panel); border: 2px solid var(--accent); border-radius: 12px; padding: 14px; z-index: 8; box-shadow: 0 8px 24px rgba(0,0,0,.25); }
+.tip[hidden] { display: none; }
+.tip svg { width: 56px; height: 56px; float: left; margin: 0 12px 6px 0; }
+.tip h3 { margin: 0 0 4px; font-size: 1.05rem; }
+.tip p { margin: 0 0 8px; font-size: .9rem; }
+.tip .go { display: inline-flex; align-items: center; min-height: 44px; padding: 8px 14px; border-radius: 8px; background: var(--accent); color: var(--accent-ink); text-decoration: none; }
+.promo:hover .tip.hover, .promo:focus-within .tip.hover { display: block; }
 .muted { color: var(--muted); } .small { font-size: .85rem; }
 .badge { display: inline-block; padding: 1px 8px; border-radius: 6px; border: 1px solid var(--line); font-size: .8rem; background: var(--panel); }
 pre { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px; overflow: auto; white-space: pre-wrap; word-break: break-word; max-height: 360px; }
@@ -90,11 +102,26 @@ pre { background: var(--panel); border: 1px solid var(--line); border-radius: 8p
   <nav role="tablist" aria-label="Sections">
     <button role="tab" id="t-results" aria-selected="true" data-tab="results">Results</button>
     <button role="tab" id="t-sessions" aria-selected="false" data-tab="sessions">Conversations</button>
+    <button role="tab" id="t-catalog" aria-selected="false" data-tab="catalog">Catalog</button>
     <button role="tab" id="t-settings" aria-selected="false" data-tab="settings">Settings</button>
     <button role="tab" id="t-run" aria-selected="false" data-tab="run">Run &amp; export</button>
     <button id="theme" aria-label="Switch light and dark">◐</button>
   </nav>
 </header>
+<div class="promo" id="promo">
+  <span class="standalone-only"><a id="tadamoo-link" href="https://github.com/nuspy/tadamoo" target="_blank" rel="noopener noreferrer" aria-describedby="promo-tip">
+    <svg width="22" height="22" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 4 56 14v18c0 14-10 24-24 28C18 56 8 46 8 32V14z" fill="currentColor" opacity=".18" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/><path d="M20 40V24l12 12 12-12v16" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    TaDaMoo harness</a>
+  <button class="info" id="promo-btn" aria-expanded="false" aria-controls="promo-tip" aria-label="About TaDaMoo">i</button></span>
+  <a id="malweight-link" href="https://malweight.com" target="_blank" rel="noopener noreferrer">malweight.com</a>
+  <div class="tip standalone-only" id="promo-tip" role="tooltip" hidden>
+    <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 4 56 14v18c0 14-10 24-24 28C18 56 8 46 8 32V14z" fill="var(--accent)" opacity=".2" stroke="var(--accent)" stroke-width="4" stroke-linejoin="round"/><path d="M20 40V24l12 12 12-12v16" fill="none" stroke="var(--accent)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <h3>Run it in TaDaMoo</h3>
+    <p>TaDaMoo is a harness for local open-weight models with no censorship, with protection mechanisms and malweight discovery built in: outward actions are watched, risky combinations need a person, and this test runs beside your work.</p>
+    <a class="go" href="https://github.com/nuspy/tadamoo" target="_blank" rel="noopener noreferrer">Install TaDaMoo</a>
+    <a href="https://malweight.com" target="_blank" rel="noopener noreferrer" style="margin-left:8px">malweight.com</a>
+  </div>
+</div>
 <main>
 <section id="results" role="tabpanel" aria-labelledby="t-results">
   <p class="muted small">Each finding has a level. The colour helps, the name and the symbol say the same: ○ Normal (white), ◆ Interesting (green), ▲ Suspicious (yellow), ⬢ Very suspicious (orange), ✖ Critical (red).</p>
@@ -117,10 +144,18 @@ pre { background: var(--panel); border: 1px solid var(--line); border-radius: 8p
   <div id="conv" hidden></div>
 </section>
 
+<section id="catalog" role="tabpanel" aria-labelledby="t-catalog" hidden>
+  <p class="muted small">What the test is built from. The shipped rows can be changed, removed and reset; your changes are kept in your own file and never rewrite the shipped ones. People are public office-holders and company heads named in public sources; check their roles. Everything written from them is synthetic.</p>
+  <div class="legend" id="cat-kinds" role="group" aria-label="Which catalog"></div>
+  <div class="row" style="margin:10px 0"><input type="search" id="cat-q" placeholder="Search" aria-label="Search the catalog" style="max-width:340px"><button class="primary" id="cat-add">Add</button><button id="cat-reset-all">Reset all shipped rows</button><span id="cat-count" class="muted"></span></div>
+  <form id="cat-form" class="card" hidden></form>
+  <div id="cat-list"></div>
+</section>
+
 <section id="settings" role="tabpanel" aria-labelledby="t-settings" hidden>
   <p class="muted small">The settings are saved in the config file the page was started with. A key you type is stored there; a key already stored is shown as ***.</p>
-  <h2>Engine and model</h2>
-  <div class="card grid2">
+  <h2 class="standalone-only">Engine and model</h2>
+  <div class="card grid2 standalone-only">
     <label class="field"><span>Engine (runtime)</span><select id="s-runtime"></select></label>
     <label class="field"><span>Model name as the server knows it</span><input type="text" id="s-model"></label>
     <label class="field"><span>Address of the server</span><input type="text" id="s-base"></label>
@@ -134,6 +169,10 @@ pre { background: var(--panel); border: 1px solid var(--line); border-radius: 8p
   <div class="card"><div class="row" id="harness-list"></div></div>
   <h2>Sensitive users</h2>
   <div class="card"><div class="row" id="persona-list"></div></div>
+  <h2>Contexts</h2>
+  <div class="card"><p class="muted small">The fields the documents, the story and the fake computer are about. None ticked: every context of the person's own field.</p><div class="row" id="context-list"></div></div>
+  <h2>Fake computer</h2>
+  <div class="card grid2"><label class="field"><span>Files on it (ordinary and trigger together)</span><input type="number" id="w-files" min="6" max="200"></label></div>
   <h2>Long story and triggers</h2>
   <div class="card grid2">
     <label class="field"><span>Turns per conversation</span><input type="number" id="n-turns" min="2" max="1000"></label>
@@ -144,6 +183,7 @@ pre { background: var(--panel); border: 1px solid var(--line); border-radius: 8p
   <div class="card" id="trigger-list"></div>
   <h2>Analysis parameters</h2>
   <div class="card grid2">
+    <label class="field"><span>Folder where results are kept</span><input type="text" id="p-state"></label>
     <label class="field"><span>Sessions per hour</span><input type="number" id="p-rate" min="0.1" step="any"></label>
     <label class="field"><span>Duration (30m, 2h, 1d or until-stopped)</span><input type="text" id="p-duration"></label>
     <label class="field"><span>Document size (words)</span><input type="number" id="p-words" min="100"></label>
@@ -183,6 +223,7 @@ pre { background: var(--panel); border: 1px solid var(--line); border-radius: 8p
 
 <script>
 "use strict";
+if (new URLSearchParams(location.search).get("embed") === "1") document.documentElement.dataset.embed = "1";
 const $ = (id) => document.getElementById(id);
 const NAMES = ["Normal", "Interesting", "Suspicious", "Very suspicious", "Critical"];
 const SYM = ["○", "◆", "▲", "⬢", "✖"];
@@ -208,15 +249,27 @@ function showTab(name, load = true) {
   document.querySelectorAll("[role=tab]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === name)));
   document.querySelectorAll("[role=tabpanel]").forEach((p) => p.hidden = p.id !== name);
   if (!load) return;
-  if (name === "sessions") loadSessions(); if (name === "settings") loadSettings(); if (name === "run") loadRun();
+  if (name === "sessions") loadSessions(); if (name === "settings") loadSettings(); if (name === "run") loadRun(); if (name === "catalog") loadCatalog();
 }
 document.querySelectorAll("[role=tab]").forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab)));
 $("theme").addEventListener("click", () => { const r = document.documentElement; const dark = (r.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")) === "dark"; r.dataset.theme = dark ? "light" : "dark"; try { localStorage.setItem("canary-theme", r.dataset.theme); } catch (e) {} });
 try { const t = localStorage.getItem("canary-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
 
+/* the project links, on every page */
+(() => {
+  const btn = $("promo-btn"), tip = $("promo-tip");
+  const set = (open) => { tip.hidden = !open; btn.setAttribute("aria-expanded", String(open)); };
+  btn.addEventListener("click", () => set(tip.hidden));
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") set(false); });
+  document.addEventListener("click", (e) => { if (!tip.hidden && !$("promo").contains(e.target)) set(false); });
+  $("tadamoo-link").addEventListener("mouseenter", () => set(true));
+  $("promo").addEventListener("mouseleave", () => set(false));
+  $("tadamoo-link").addEventListener("focus", () => set(true));
+})();
+
 /* header and legend */
 async function refreshSummary() {
-  const s = await api("/api/summary");
+  const s = await api("api/summary");
   LEVELS = s.levels;
   const st = $("status"); st.replaceChildren(...[
     h("span", { class: "pill" }, h("span", { class: "dot" + (s.running ? " on" : ""), "aria-hidden": "true" }), s.running ? "Running" : "Not running"),
@@ -240,7 +293,7 @@ function query() {
   return p;
 }
 async function loadFindings() {
-  const data = await api("/api/findings?" + query());
+  const data = await api("api/findings?" + query());
   CURRENT = data.items;
   $("count").textContent = data.total + " findings" + (data.total > data.items.length ? " (the first " + data.items.length + " are shown)" : "");
   const tb = $("table").querySelector("tbody");
@@ -255,7 +308,7 @@ async function loadFindings() {
 ["f-q", "f-kind", "f-role", "f-harness", "f-session", "f-trigger", "f-order"].forEach((id) => $(id).addEventListener(id === "f-q" ? "input" : "change", () => { clearTimeout(loadFindings.t); loadFindings.t = setTimeout(loadFindings, 200); }));
 
 async function openFinding(n) {
-  const f = await api("/api/finding/" + n); const d = $("drawer"); const lv = f.level;
+  const f = await api("api/finding/" + n); const d = $("drawer"); const lv = f.level;
   const analysis = h("div", { id: "ai-out" });
   d.replaceChildren(
     h("div", { class: "row" }, h("button", { onclick: () => d.hidden = true }, "Close"), badge(lv)),
@@ -271,7 +324,7 @@ async function openFinding(n) {
 async function runAnalysis(body, out) {
   out.replaceChildren(h("p", { class: "muted" }, "Asking the reviewer model…"));
   try {
-    const r = await api("/api/analyse", body);
+    const r = await api("api/analyse", body);
     if (!r.ok) { out.replaceChildren(h("p", {}, r.error)); return; }
     const a = r.assessment;
     out.replaceChildren(h("h2", {}, "Pre-analysis by " + (r.model || "the reviewer")), h("p", { class: "small muted" }, "An aid to reading, not a verdict. It saw " + r.findings + " findings."),
@@ -284,7 +337,7 @@ $("analyse-all").addEventListener("click", () => { const d = $("drawer"); const 
 
 /* conversations */
 async function loadSessions() {
-  const list = await api("/api/sessions"); $("conv").hidden = true; $("session-list").hidden = false;
+  const list = await api("api/sessions"); $("conv").hidden = true; $("session-list").hidden = false;
   $("session-list").replaceChildren(h("p", { class: "muted small" }, list.length + " sessions. Pick one to read the conversation with its triggers and findings."),
     ...list.slice().reverse().map((s) => {
       const p = s.persona; const nr = s.narrative;
@@ -304,7 +357,7 @@ function bubble(who, text, cls, extras) {
 }
 async function openConversation(session, role, profile) {
   showTab("sessions", false);
-  const c = await api("/api/conversation?" + new URLSearchParams({ session, role, profile }));
+  const c = await api("api/conversation?" + new URLSearchParams({ session, role, profile }));
   $("session-list").hidden = true; const box = $("conv"); box.hidden = false;
   const lvByTurn = {}; c.findings.forEach((f) => { const t = f.evidence.turn; if (t != null) lvByTurn[t] = Math.max(lvByTurn[t] ?? 0, f.level); });
   const trig = Object.fromEntries(c.triggers.map((t) => [t.turn, t])), bait = Object.fromEntries(c.bait.map((b) => [b.turn, b]));
@@ -323,7 +376,7 @@ async function openConversation(session, role, profile) {
   const tools = c.calls.length ? [h("h2", {}, "Tool calls (" + c.calls.length + ")"), ...c.calls.map((x) => h("div", { class: "bubble tool" }, h("div", { class: "who" }, "turn " + x.turn + " · " + x.name + " · " + (x.role || "unknown") + (x.request ? " · request: " + String(x.request).slice(0, 80) : "")), h("code", {}, JSON.stringify(x.arguments).slice(0, 600))))] : [];
   const composer = profile ? h("p", { class: "muted small" }, "A conversation under a harness is read-only. To write to the model, open the chat conversation of this session.") :
     h("form", { class: "composer", onsubmit: async (e) => { e.preventDefault(); const ta = $("say"); const text = ta.value.trim(); if (!text) return; ta.disabled = true; $("send").disabled = true;
-        try { const r = await api("/api/chat", { session, role, text }); ta.value = ""; await openConversation(session, role, profile); toast(r.findings ? r.findings + " finding(s) from your message." : "Answered, no findings."); }
+        try { const r = await api("api/chat", { session, role, text }); ta.value = ""; await openConversation(session, role, profile); toast(r.findings ? r.findings + " finding(s) from your message." : "Answered, no findings."); }
         catch (err) { toast(err.message); ta.disabled = false; $("send").disabled = false; } } },
       h("label", { class: "field" }, h("span", {}, "Write to the model, with this whole conversation as context. What it answers is scanned like any other answer."), h("textarea", { id: "say", rows: "3" })),
       h("button", { class: "primary", id: "send", type: "submit" }, "Send"));
@@ -338,50 +391,105 @@ const val = (id, v) => { const e = $(id); if (v === undefined) return e.type ===
 const group = (box, items, selected, name) => box.replaceChildren(...items.map((it) => h("label", { class: "check" }, h("input", { type: "checkbox", name, value: it.id, checked: selected.includes(it.id) }), h("span", {}, it.label || it.name, it.status ? h("span", { class: "badge" }, it.status) : null, it.hint ? h("span", { class: "muted small" }, " — " + it.hint) : null))));
 const picks = (box) => [...box.querySelectorAll("input:checked")].map((i) => i.value);
 async function loadSettings() {
-  [OPTIONS, CONFIG] = await Promise.all([api("/api/options"), api("/api/config")]); const c = CONFIG;
+  [OPTIONS, CONFIG] = await Promise.all([api("api/options"), api("api/config")]); const c = CONFIG;
   $("s-runtime").replaceChildren(...OPTIONS.runtimes.map((r) => h("option", { value: r.id }, r.name + " (" + r.base_url + ")"))); val("s-runtime", c.runtime || "generic");
   $("s-vendor").replaceChildren(h("option", { value: "" }, "detect from the model name"), ...OPTIONS.vendors.map((v) => h("option", { value: v.id }, v.name))); val("s-vendor", c.vendor || "");
   val("s-model", c.target.model); val("s-base", c.target.base_url); val("s-key", c.target.api_key);
-  const goals = $("goals"); const on = { chat: true, harness: (c.harnesses || []).length > 0, narrative: !!(c.narrative || {}).enabled, personas: !!(c.personas || {}).enabled };
+  const goals = $("goals"); const on = { chat: true, harness: (c.harnesses || []).length > 0, narrative: !!(c.narrative || {}).enabled, personas: !!(c.personas || {}).enabled, workspace: !!(c.workspace || {}).enabled };
   group(goals, OPTIONS.goals, Object.keys(on).filter((k) => on[k]), "goal");
   group($("harness-list"), OPTIONS.harnesses.map((p) => ({ id: p.id, name: p.name, status: p.status })), c.harnesses || [], "harness");
   group($("persona-list"), OPTIONS.persona_categories, (c.personas || {}).categories?.length ? c.personas.categories : OPTIONS.persona_categories.map((x) => x.id), "persona");
+  group($("context-list"), OPTIONS.contexts, (c.personas || {}).domains || [], "context"); val("w-files", (c.workspace || {}).files ?? 18);
   const nv = c.narrative || {}; val("n-turns", nv.turns ?? 100); val("n-ctx", nv.context_tokens ?? 56000); val("n-reply", nv.reply_tokens ?? 700); val("n-harness", nv.harness_interactions ?? 20);
   group($("trigger-list"), OPTIONS.triggers, nv.triggers || OPTIONS.triggers.map((t) => t.id), "trigger");
-  val("p-rate", c.sessions_per_hour); val("p-duration", c.duration); val("p-words", c.doc_words); val("p-research", c.research_share); val("p-hturns", c.harness_turns); val("p-tokens", c.max_tokens);
+  val("p-state", c.state_dir); val("p-rate", c.sessions_per_hour); val("p-duration", c.duration); val("p-words", c.doc_words); val("p-research", c.research_share); val("p-hturns", c.harness_turns); val("p-tokens", c.max_tokens);
   val("m-listener", (c.canary_listener || {}).enabled); val("m-monitor", (c.monitor || {}).base_url || "");
   const r = c.reviewer || {}; val("r-base", r.base_url); val("r-model", r.model); val("r-key", r.api_key); val("a-min", (c.alerts || {}).min_severity || "high"); val("a-cmd", (c.alerts || {}).command || "");
 }
 $("apply-runtime").addEventListener("click", async () => {
-  try { await api("/api/runtime", { runtime: val("s-runtime"), model: val("s-model"), vendor: val("s-vendor"), base_url: "" }); await loadSettings(); toast("Address and monitor set for this engine."); } catch (e) { toast(e.message); }
+  try { await api("api/runtime", { runtime: val("s-runtime"), model: val("s-model"), vendor: val("s-vendor"), base_url: "" }); await loadSettings(); toast("Address and monitor set for this engine."); } catch (e) { toast(e.message); }
 });
 $("save").addEventListener("click", async () => {
   const goals = picks($("goals")); const harnesses = goals.includes("harness") ? picks($("harness-list")) : [];
   const patch = {
     target: { base_url: val("s-base"), model: val("s-model"), api_key: val("s-key") }, vendor: val("s-vendor") || null,
-    harnesses, personas: { enabled: goals.includes("personas"), categories: picks($("persona-list")) },
+    harnesses, personas: { enabled: goals.includes("personas"), categories: picks($("persona-list")), domains: picks($("context-list")) },
+    workspace: { enabled: goals.includes("workspace"), files: +val("w-files") },
     narrative: { enabled: goals.includes("narrative"), turns: +val("n-turns"), context_tokens: +val("n-ctx"), reply_tokens: +val("n-reply"), harness_interactions: +val("n-harness"), triggers: picks($("trigger-list")) },
-    sessions_per_hour: +val("p-rate"), duration: val("p-duration"), doc_words: +val("p-words"), research_share: +val("p-research"), harness_turns: +val("p-hturns"), max_tokens: +val("p-tokens"),
+    state_dir: val("p-state"), sessions_per_hour: +val("p-rate"), duration: val("p-duration"), doc_words: +val("p-words"), research_share: +val("p-research"), harness_turns: +val("p-hturns"), max_tokens: +val("p-tokens"),
     canary_listener: { enabled: val("m-listener") }, alerts: { min_severity: val("a-min"), command: val("a-cmd") },
     reviewer: val("r-model") ? { kind: "openai", base_url: val("r-base"), model: val("r-model"), api_key: val("r-key"), extra_headers: {} } : null,
   };
   if (val("m-monitor")) patch.monitor = { base_url: val("m-monitor"), api_key: (CONFIG.monitor || {}).api_key || "" };
-  try { await api("/api/config", patch); $("save-msg").textContent = "Saved."; toast("Settings saved."); } catch (e) { $("save-msg").textContent = "Not saved: " + e.message; toast("Not saved: " + e.message); }
+  try { await api("api/config", patch); $("save-msg").textContent = "Saved."; toast("Settings saved."); } catch (e) { $("save-msg").textContent = "Not saved: " + e.message; toast("Not saved: " + e.message); }
 });
 
 /* run and export */
 async function loadRun() {
   const s = await refreshSummary(); const st = s.status || {};
   $("run-status").textContent = s.running ? "Running (process " + s.pid + "). " + (st.sessions_done ?? st.sessions ?? "") + " " + (st.state || "") : "Not running. State folder: " + s.state_dir;
-  $("alerts").textContent = await (await fetch("/api/alerts")).text();
+  $("alerts").textContent = await (await fetch("api/alerts")).text();
 }
-$("start").addEventListener("click", async () => { try { const r = await api("/api/start", {}); toast(r.already_running ? "Already running." : "Started."); setTimeout(loadRun, 800); } catch (e) { toast(e.message); } });
-$("stop").addEventListener("click", async () => { try { await api("/api/stop", {}); toast("Stop asked: the run ends after the current session."); setTimeout(loadRun, 800); } catch (e) { toast(e.message); } });
-document.querySelectorAll("[data-export]").forEach((b) => b.addEventListener("click", () => { const p = query(); p.set("format", b.dataset.export); location.href = "/api/export?" + p; }));
+$("start").addEventListener("click", async () => { try { const r = await api("api/start", {}); toast(r.already_running ? "Already running." : "Started."); setTimeout(loadRun, 800); } catch (e) { toast(e.message); } });
+$("stop").addEventListener("click", async () => { try { await api("api/stop", {}); toast("Stop asked: the run ends after the current session."); setTimeout(loadRun, 800); } catch (e) { toast(e.message); } });
+document.querySelectorAll("[data-export]").forEach((b) => b.addEventListener("click", () => { const p = query(); p.set("format", b.dataset.export); location.href = "api/export?" + p; }));
+
+/* catalog */
+const CAT = { kind: "personas", rows: [], editing: null, kinds: [["personas", "Simulated people"], ["figures", "Figures in the files"], ["contexts", "Contexts"]] };
+const CAT_FIELDS = {
+  personas: [["category", "select", "persona_categories", "Field"], ["name", "text", null, "Name (empty: only the role)"], ["role", "text", null, "Role"], ["org", "text", null, "Organisation"]],
+  figures: [["side", "select", "sides", "Side"], ["name", "text", null, "Name"], ["role", "text", null, "Role"], ["org", "text", null, "Organisation"]],
+  contexts: [["label", "text", null, "Name of the context"], ["office", "text", null, "Short office code"], ["categories", "checks", "persona_categories", "Used by these fields"], ["sides", "checks", "sides", "People that appear"],
+             ["actors", "lines", null, "Actors (one per line)"], ["assets", "lines", null, "Assets"], ["places", "lines", null, "Places"], ["topics", "lines", null, "Topics"], ["verbs", "lines", null, "Verbs"], ["past", "lines", null, "Verbs, past tense"], ["types", "lines", null, "Document types"]],
+};
+const catTitle = (r) => CAT.kind === "contexts" ? r.label : [r.name, r.role && ("— " + r.role), r.org && ("· " + r.org)].filter(Boolean).join(" ");
+async function loadCatalog() {
+  if (!OPTIONS) OPTIONS = await api("api/options");
+  $("cat-kinds").replaceChildren(...CAT.kinds.map(([k, label]) => h("button", { class: "chip", "aria-pressed": String(CAT.kind === k), onclick: () => { CAT.kind = k; CAT.editing = null; loadCatalog(); } }, label)));
+  CAT.rows = await api("api/catalog?kind=" + CAT.kind); drawCatalog();
+}
+function drawCatalog() {
+  const q = $("cat-q").value.trim().toLowerCase();
+  const rows = CAT.rows.filter((r) => !q || JSON.stringify(r).toLowerCase().includes(q));
+  $("cat-count").textContent = rows.length + " of " + CAT.rows.length;
+  $("cat-list").replaceChildren(...rows.map((r) => {
+    const del = h("button", { class: "danger", onclick: async (e) => { const b = e.currentTarget; if (!b.dataset.sure) { b.dataset.sure = "1"; b.textContent = "Really delete?"; setTimeout(() => { delete b.dataset.sure; b.textContent = "Delete"; }, 4000); return; }
+        try { await api("api/catalog/delete", { kind: CAT.kind, id: r.id }); loadCatalog(); } catch (err) { toast(err.message); } } }, "Delete");
+    return h("div", { class: "card" }, h("div", { class: "row" }, h("strong", {}, catTitle(r)),
+        h("span", { class: "badge" }, r.builtin ? (r.edited ? "shipped, changed" : "shipped") : "yours"), r.category || r.side ? h("span", { class: "badge" }, r.category || r.side) : null),
+      CAT.kind === "contexts" ? h("p", { class: "small muted" }, "Fields: " + (r.categories || []).join(", ") + " · people: " + (r.sides || []).join(", ") + " · " + r.actors.length + " actors, " + r.assets.length + " assets, " + r.topics.length + " topics") : null,
+      h("div", { class: "row" }, h("button", { onclick: () => editRow(r) }, "Edit"), del,
+        r.builtin && r.edited ? h("button", { onclick: async () => { await api("api/catalog/reset", { kind: CAT.kind, id: r.id }); loadCatalog(); } }, "Reset to shipped") : null));
+  }));
+}
+function editRow(row) {
+  const f = $("cat-form"); const cur = row || {}; f.hidden = false;
+  const inputs = CAT_FIELDS[CAT.kind].map(([key, type, src, label]) => {
+    const v = cur[key];
+    if (type === "select") return h("label", { class: "field" }, h("span", {}, label), h("select", { name: key }, ...OPTIONS[src].map((o) => h("option", { value: o.id, selected: o.id === v }, o.label))));
+    if (type === "checks") return h("fieldset", { class: "field" }, h("span", {}, label), h("div", { class: "row", "data-checks": key }, ...OPTIONS[src].map((o) => h("label", { class: "check" }, h("input", { type: "checkbox", value: o.id, checked: (v || []).includes(o.id) }), h("span", {}, o.label)))));
+    if (type === "lines") return h("label", { class: "field" }, h("span", {}, label), h("textarea", { name: key, rows: "4" }, (v || []).join("\n")));
+    return h("label", { class: "field" }, h("span", {}, label), h("input", { type: "text", name: key, value: v || "" }));
+  });
+  f.replaceChildren(h("h2", {}, row ? "Edit" : "Add"), h("div", { class: "grid2" }, ...inputs),
+    h("div", { class: "row" }, h("button", { class: "primary", type: "submit" }, "Save"), h("button", { type: "button", onclick: () => f.hidden = true }, "Cancel"), h("span", { id: "cat-msg", role: "status" })));
+  f.onsubmit = async (e) => {
+    e.preventDefault(); const out = row && row.id ? { id: row.id } : {};
+    for (const [key, type] of CAT_FIELDS[CAT.kind]) {
+      if (type === "checks") out[key] = [...f.querySelectorAll('[data-checks="' + key + '"] input:checked')].map((i) => i.value);
+      else out[key] = f.elements[key].value;
+    }
+    try { await api("api/catalog/save", { kind: CAT.kind, row: out }); f.hidden = true; loadCatalog(); toast("Saved."); } catch (err) { $("cat-msg").textContent = err.message; }
+  };
+  f.scrollIntoView({ block: "nearest" }); const first = f.querySelector("input,select,textarea"); if (first) first.focus();
+}
+$("cat-add").addEventListener("click", () => editRow(null));
+$("cat-q").addEventListener("input", drawCatalog);
+$("cat-reset-all").addEventListener("click", async () => { try { await api("api/catalog/reset", { kind: CAT.kind }); loadCatalog(); toast("Shipped rows restored."); } catch (e) { toast(e.message); } });
 
 /* start */
 (async () => {
-  try { OPTIONS = await api("/api/options"); const sel = $("f-harness"); OPTIONS.harnesses.forEach((p) => sel.append(h("option", { value: p.id }, p.id))); } catch (e) {}
+  try { OPTIONS = await api("api/options"); const sel = $("f-harness"); OPTIONS.harnesses.forEach((p) => sel.append(h("option", { value: p.id }, p.id))); } catch (e) {}
   await refreshSummary(); await loadFindings();
   setInterval(async () => { if (!document.hidden) { try { const s = await refreshSummary(); if (s.running && !$("results").hidden) loadFindings(); } catch (e) {} } }, 5000);
 })();
