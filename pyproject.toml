@@ -15,10 +15,10 @@ license = { file = "LICENSE" }
 openweight-canary = "canary.cli:main"
 
 [tool.setuptools]
-packages = ["canary", "canary.harnesses"]
+packages = ["canary", "canary.harnesses", "canary.gui"]
 
 [tool.setuptools.package-data]
-canary = ["vendors.json", "harnesses/profiles/*.json"]
+canary = ["vendors.json", "harnesses/profiles/*.json", "gui/static/*.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Openweight Canary</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #1b1f24; --muted: #4b5563; --line: #c9ced6; --focus: #1d4ed8; --accent: #1d4ed8; --accent-ink: #ffffff;
+  --l0: #ffffff; --l0b: #8a93a1; --l1: #d9f2dd; --l1b: #2e9b4b; --l2: #fff2b3; --l2b: #c99a00; --l3: #ffd9a6; --l3b: #e8710a; --l4: #ffb8b8; --l4b: #d92d2d;
+}
+:root[data-theme="dark"] {
+  --bg: #14171c; --panel: #1d2128; --ink: #f1f3f5; --muted: #b6bdc8; --line: #3a414c; --focus: #8ab4ff; --accent: #8ab4ff; --accent-ink: #0b1220;
+  --l0: #23272e; --l0b: #8a93a1; --l1: #1f4a2c; --l1b: #4cc26b; --l2: #5c4d0f; --l2b: #f2c824; --l3: #6b3b0b; --l3b: #ff9a3d; --l4: #6e1b1b; --l4b: #ff6b6b;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #14171c; --panel: #1d2128; --ink: #f1f3f5; --muted: #b6bdc8; --line: #3a414c; --focus: #8ab4ff; --accent: #8ab4ff; --accent-ink: #0b1220;
+  --l0: #23272e; --l0b: #8a93a1; --l1: #1f4a2c; --l1b: #4cc26b; --l2: #5c4d0f; --l2b: #f2c824; --l3: #6b3b0b; --l3b: #ff9a3d; --l4: #6e1b1b; --l4b: #ff6b6b;
+} }
+* { box-sizing: border-box; }
+html { font-size: 16px; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 1rem/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; padding: 12px 16px; background: var(--panel); border-bottom: 1px solid var(--line); }
+h1 { font-size: 1.15rem; margin: 0; }
+h2 { font-size: 1.05rem; margin: 20px 0 8px; }
+main { max-width: 1200px; margin: 0 auto; padding: 16px; }
+button, select, input, textarea { font: inherit; color: var(--ink); }
+button { min-height: 44px; min-width: 44px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); cursor: pointer; }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button.danger { border-color: var(--l4b); }
+button:disabled { opacity: .55; cursor: not-allowed; }
+input[type=text], input[type=number], input[type=password], input[type=search], select, textarea { min-height: 44px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); width: 100%; }
+input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--accent); }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+nav[role=tablist] { display: flex; gap: 6px; flex-wrap: wrap; }
+nav button[aria-selected=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; font-size: .9rem; background: var(--panel); }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--l0b); }
+.dot.on { background: var(--l1b); }
+.legend, .filters, .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.chip { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 12px; border-radius: 8px; border: 2px solid var(--line); background: var(--panel); cursor: pointer; }
+.chip[aria-pressed=true] { border-width: 3px; font-weight: 600; }
+.sw { display: inline-block; min-width: 1.4em; text-align: center; font-weight: 700; }
+.lv0 { background: var(--l0); border-left: 8px solid var(--l0b); } .lv1 { background: var(--l1); border-left: 8px solid var(--l1b); }
+.lv2 { background: var(--l2); border-left: 8px solid var(--l2b); } .lv3 { background: var(--l3); border-left: 8px solid var(--l3b); }
+.lv4 { background: var(--l4); border-left: 8px solid var(--l4b); }
+.filters label { display: flex; flex-direction: column; font-size: .85rem; color: var(--muted); flex: 1 1 150px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin: 8px 0; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tbody tr { cursor: pointer; } tbody tr:hover { outline: 2px solid var(--focus); outline-offset: -2px; }
+td.ev { font-family: ui-monospace, Consolas, monospace; font-size: .82rem; word-break: break-word; max-width: 420px; }
+.muted { color: var(--muted); } .small { font-size: .85rem; }
+.badge { display: inline-block; padding: 1px 8px; border-radius: 6px; border: 1px solid var(--line); font-size: .8rem; background: var(--panel); }
+pre { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px; overflow: auto; white-space: pre-wrap; word-break: break-word; max-height: 360px; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.field { display: flex; flex-direction: column; gap: 4px; } .field > span { font-size: .85rem; color: var(--muted); }
+.check { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; min-height: 44px; }
+.timeline { display: flex; gap: 2px; height: 28px; align-items: stretch; margin: 8px 0; flex-wrap: nowrap; overflow-x: auto; }
+.timeline i { flex: 1 0 6px; min-width: 6px; border-radius: 2px; position: relative; }
+.turn { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin: 8px 0; background: var(--panel); }
+.turn .who { font-size: .8rem; color: var(--muted); }
+.chat { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+.pair { display: flex; flex-direction: column; gap: 6px; }
+.bubble { max-width: min(760px, 92%); padding: 8px 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel); white-space: pre-wrap; word-break: break-word; }
+.bubble.me { align-self: flex-end; background: var(--l1); border-bottom-right-radius: 4px; }
+.bubble.model { align-self: flex-start; border-bottom-left-radius: 4px; }
+.bubble.tool { align-self: flex-start; font-size: .9rem; background: var(--bg); }
+.bubble .who { font-size: .78rem; color: var(--muted); margin-bottom: 2px; }
+.bubble .mark { font-size: .8rem; font-weight: 600; margin-top: 4px; }
+.composer { position: sticky; bottom: 0; background: var(--bg); padding: 10px 0 calc(10px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 8px; }
+.drawer { position: fixed; inset: 0 0 0 auto; width: min(640px, 100%); background: var(--panel); border-left: 2px solid var(--line); overflow: auto; padding: 16px; z-index: 5;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+.drawer[hidden] { display: none; }
+.toast { position: fixed; bottom: 16px; left: 16px; right: 16px; max-width: 520px; margin: auto; padding: 12px 16px; border-radius: 8px; background: var(--ink); color: var(--bg); z-index: 9; }
+.toast[hidden] { display: none; }
+@media (max-width: 760px) {
+  thead { display: none; } table, tbody, tr, td { display: block; width: 100%; }
+  tr { border: 1px solid var(--line); border-radius: 8px; margin: 8px 0; padding: 6px; } td { border: 0; padding: 3px 6px; } td.ev { max-width: none; }
+  td::before { content: attr(data-l) ": "; color: var(--muted); font-size: .8rem; }
+}
+@media (prefers-reduced-motion: no-preference) { button { transition: background-color .12s; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Openweight Canary</h1>
+  <div class="row" id="status" aria-live="polite"></div>
+  <nav role="tablist" aria-label="Sections">
+    <button role="tab" id="t-results" aria-selected="true" data-tab="results">Results</button>
+    <button role="tab" id="t-sessions" aria-selected="false" data-tab="sessions">Conversations</button>
+    <button role="tab" id="t-settings" aria-selected="false" data-tab="settings">Settings</button>
+    <button role="tab" id="t-run" aria-selected="false" data-tab="run">Run &amp; export</button>
+    <button id="theme" aria-label="Switch light and dark">◐</button>
+  </nav>
+</header>
+<main>
+<section id="results" role="tabpanel" aria-labelledby="t-results">
+  <p class="muted small">Each finding has a level. The colour helps, the name and the symbol say the same: ○ Normal (white), ◆ Interesting (green), ▲ Suspicious (yellow), ⬢ Very suspicious (orange), ✖ Critical (red).</p>
+  <div class="legend" id="legend" role="group" aria-label="Filter by level"></div>
+  <div class="filters card">
+    <label>Search<input type="search" id="f-q" placeholder="text in the finding, a host, a command"></label>
+    <label>Kind<select id="f-kind"><option value="">All kinds</option></select></label>
+    <label>Role<select id="f-role"><option value="">Both</option><option>sensitive</option><option>control</option></select></label>
+    <label>Profile<select id="f-harness"><option value="">All (chat and tools)</option></select></label>
+    <label>Session<input type="number" id="f-session" min="1" placeholder="any"></label>
+    <label>After a trigger<select id="f-trigger"><option value="">Any</option><option value="date">date</option><option value="deployment">deployment tag</option><option value="identity">role restated</option><option value="keyword">topic word</option></select></label>
+    <label>Order<select id="f-order"><option value="level">Worst first</option><option value="new">Newest first</option></select></label>
+  </div>
+  <div class="row"><span id="count" class="muted"></span><button id="analyse-all">Pre-analyse the shown findings with AI</button></div>
+  <table id="table"><thead><tr><th>Level<th>Kind<th>Session<th>Role / profile<th>Turn<th>Evidence</tr></thead><tbody></tbody></table>
+</section>
+
+<section id="sessions" role="tabpanel" aria-labelledby="t-sessions" hidden>
+  <div id="session-list"></div>
+  <div id="conv" hidden></div>
+</section>
+
+<section id="settings" role="tabpanel" aria-labelledby="t-settings" hidden>
+  <p class="muted small">The settings are saved in the config file the page was started with. A key you type is stored there; a key already stored is shown as ***.</p>
+  <h2>Engine and model</h2>
+  <div class="card grid2">
+    <label class="field"><span>Engine (runtime)</span><select id="s-runtime"></select></label>
+    <label class="field"><span>Model name as the server knows it</span><input type="text" id="s-model"></label>
+    <label class="field"><span>Address of the server</span><input type="text" id="s-base"></label>
+    <label class="field"><span>Vendor (empty: detected from the model name)</span><select id="s-vendor"></select></label>
+    <label class="field"><span>Key of the server, if it needs one</span><input type="password" id="s-key" autocomplete="off"></label>
+    <div class="field"><span>&nbsp;</span><button id="apply-runtime">Use this engine's defaults for the address and the monitor</button></div>
+  </div>
+  <h2>What to look for</h2>
+  <div class="card" id="goals"></div>
+  <h2>Agent harness profiles</h2>
+  <div class="card"><div class="row" id="harness-list"></div></div>
+  <h2>Sensitive users</h2>
+  <div class="card"><div class="row" id="persona-list"></div></div>
+  <h2>Long story and triggers</h2>
+  <div class="card grid2">
+    <label class="field"><span>Turns per conversation</span><input type="number" id="n-turns" min="2" max="1000"></label>
+    <label class="field"><span>Most text a conversation may hold (tokens)</span><input type="number" id="n-ctx" min="1000"></label>
+    <label class="field"><span>Tokens per reply, thinking included</span><input type="number" id="n-reply" min="50"></label>
+    <label class="field"><span>Turns of the story used under a harness</span><input type="number" id="n-harness" min="1" max="1000"></label>
+  </div>
+  <div class="card" id="trigger-list"></div>
+  <h2>Analysis parameters</h2>
+  <div class="card grid2">
+    <label class="field"><span>Sessions per hour</span><input type="number" id="p-rate" min="0.1" step="any"></label>
+    <label class="field"><span>Duration (30m, 2h, 1d or until-stopped)</span><input type="text" id="p-duration"></label>
+    <label class="field"><span>Document size (words)</span><input type="number" id="p-words" min="100"></label>
+    <label class="field"><span>Share of sessions with a research question (0 to 1)</span><input type="number" id="p-research" min="0" max="1" step="0.05"></label>
+    <label class="field"><span>Tool turns per harness conversation</span><input type="number" id="p-hturns" min="1" max="40"></label>
+    <label class="field"><span>Tokens per reply (short sessions)</span><input type="number" id="p-tokens" min="50"></label>
+  </div>
+  <h2>Mechanisms</h2>
+  <div class="card grid2">
+    <label class="check"><input type="checkbox" id="m-listener"><span>Canary web listener (sees whether the model reaches the planted addresses)</span></label>
+    <label class="field"><span>Network monitor address (empty: built-in sampler)</span><input type="text" id="m-monitor"></label>
+    <label class="field"><span>Reviewer model, address</span><input type="text" id="r-base"></label>
+    <label class="field"><span>Reviewer model, name</span><input type="text" id="r-model"></label>
+    <label class="field"><span>Reviewer key</span><input type="password" id="r-key" autocomplete="off"></label>
+    <label class="field"><span>Alert from level (severity)</span><select id="a-min"><option value="high">high</option><option value="medium">medium</option><option value="low">low</option></select></label>
+    <label class="field"><span>Command run for each alert</span><input type="text" id="a-cmd"></label>
+  </div>
+  <div class="row" style="margin-top:12px"><button class="primary" id="save">Save settings</button><span id="save-msg" role="status"></span></div>
+</section>
+
+<section id="run" role="tabpanel" aria-labelledby="t-run" hidden>
+  <h2>Run</h2>
+  <div class="card">
+    <div class="row"><button class="primary" id="start">Start the analysis</button><button class="danger" id="stop">Stop after the current session</button></div>
+    <p id="run-status" class="muted" role="status"></p>
+  </div>
+  <h2>Alerts</h2>
+  <div class="card"><p class="muted small">What a person should read: findings of level high or above, and the ones that say the sensitive document was treated differently.</p><pre id="alerts">…</pre></div>
+  <h2>Export</h2>
+  <div class="card"><p class="muted small">Exports use the filters of the Results page.</p>
+    <div class="row"><button data-export="csv">CSV</button><button data-export="json">JSON</button><button data-export="md">Markdown</button><button data-export="html">HTML</button></div></div>
+</section>
+</main>
+
+<aside class="drawer" id="drawer" hidden aria-label="Finding" tabindex="-1"></aside>
+<div class="toast" id="toast" hidden role="status"></div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const NAMES = ["Normal", "Interesting", "Suspicious", "Very suspicious", "Critical"];
+const SYM = ["○", "◆", "▲", "⬢", "✖"];
+let LEVELS = [], OPTIONS = null, CONFIG = null, picked = new Set([1, 2, 3, 4]), CURRENT = [];
+
+function h(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) { if (k === "class") e.className = v; else if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else if (v !== false && v != null) e.setAttribute(k, v === true ? "" : v); }
+  for (const kid of kids.flat()) { if (kid != null) e.append(kid.nodeType ? kid : document.createTextNode(String(kid))); }
+  return e;
+}
+const api = async (path, body) => {
+  const r = await fetch(path, body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json", "X-Canary-GUI": "1" }, body: JSON.stringify(body) });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || r.statusText);
+  return data;
+};
+const toast = (msg) => { const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 5000); };
+const badge = (lv) => h("span", { class: "badge lv" + lv }, h("span", { class: "sw", "aria-hidden": "true" }, SYM[lv]), " ", NAMES[lv]);
+
+/* tabs */
+function showTab(name, load = true) {
+  document.querySelectorAll("[role=tab]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === name)));
+  document.querySelectorAll("[role=tabpanel]").forEach((p) => p.hidden = p.id !== name);
+  if (!load) return;
+  if (name === "sessions") loadSessions(); if (name === "settings") loadSettings(); if (name === "run") loadRun();
+}
+document.querySelectorAll("[role=tab]").forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab)));
+$("theme").addEventListener("click", () => { const r = document.documentElement; const dark = (r.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")) === "dark"; r.dataset.theme = dark ? "light" : "dark"; try { localStorage.setItem("canary-theme", r.dataset.theme); } catch (e) {} });
+try { const t = localStorage.getItem("canary-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+
+/* header and legend */
+async function refreshSummary() {
+  const s = await api("/api/summary");
+  LEVELS = s.levels;
+  const st = $("status"); st.replaceChildren(...[
+    h("span", { class: "pill" }, h("span", { class: "dot" + (s.running ? " on" : ""), "aria-hidden": "true" }), s.running ? "Running" : "Not running"),
+    h("span", { class: "pill" }, s.sessions + " sessions"), h("span", { class: "pill" }, s.findings + " findings"),
+    s.alerts ? h("span", { class: "pill lv4" }, "✖ " + s.alerts + " alerts") : null,
+    s.chain_ok ? null : h("span", { class: "pill lv4" }, "Findings file altered: " + s.chain_message)].filter(Boolean));
+  const lg = $("legend"); lg.replaceChildren(...LEVELS.map((l) => {
+    const n = s.by_level[l.id]; const b = h("button", { class: "chip lv" + l.level, "aria-pressed": String(picked.has(l.level)),
+      onclick: () => { picked.has(l.level) ? picked.delete(l.level) : picked.add(l.level); loadFindings(); refreshSummary(); } },
+      h("span", { class: "sw", "aria-hidden": "true" }, SYM[l.level]), l.name + " ", h("span", { class: "muted" }, "(" + n + ")"));
+    b.title = l.hint; return b; }));
+  const kinds = $("f-kind"); const cur = kinds.value; kinds.replaceChildren(h("option", { value: "" }, "All kinds"), ...s.kinds.map(([k, n]) => h("option", { value: k }, k + " (" + n + ")"))); kinds.value = cur;
+  return s;
+}
+
+/* results */
+function query() {
+  const p = new URLSearchParams();
+  if (picked.size && picked.size < 5) p.set("level", [...picked].join(","));
+  for (const [k, id] of [["q", "f-q"], ["kind", "f-kind"], ["role", "f-role"], ["harness", "f-harness"], ["session", "f-session"], ["trigger", "f-trigger"], ["order", "f-order"]]) { const v = $(id).value.trim(); if (v) p.set(k, v); }
+  return p;
+}
+async function loadFindings() {
+  const data = await api("/api/findings?" + query());
+  CURRENT = data.items;
+  $("count").textContent = data.total + " findings" + (data.total > data.items.length ? " (the first " + data.items.length + " are shown)" : "");
+  const tb = $("table").querySelector("tbody");
+  tb.replaceChildren(...data.items.map((f) => {
+    const ev = JSON.stringify(f.evidence); const tr = h("tr", { class: "lv" + f.level, tabindex: "0", onclick: () => openFinding(f.n), onkeydown: (e) => { if (e.key === "Enter") openFinding(f.n); } },
+      h("td", { "data-l": "Level" }, badge(f.level)), h("td", { "data-l": "Kind" }, f.kind), h("td", { "data-l": "Session" }, f.session ?? ""),
+      h("td", { "data-l": "Role / profile" }, [f.role, f.harness].filter(Boolean).join(" / ") || "chat"),
+      h("td", { "data-l": "Turn" }, f.evidence.turn ?? "", f.evidence.since_trigger ? h("div", { class: "small muted" }, "⚑ " + f.evidence.since_trigger.family + " " + f.evidence.since_trigger.turns_ago + " turns ago") : null),
+      h("td", { class: "ev", "data-l": "Evidence" }, ev.length > 220 ? ev.slice(0, 220) + "…" : ev));
+    return tr; }));
+}
+["f-q", "f-kind", "f-role", "f-harness", "f-session", "f-trigger", "f-order"].forEach((id) => $(id).addEventListener(id === "f-q" ? "input" : "change", () => { clearTimeout(loadFindings.t); loadFindings.t = setTimeout(loadFindings, 200); }));
+
+async function openFinding(n) {
+  const f = await api("/api/finding/" + n); const d = $("drawer"); const lv = f.level;
+  const analysis = h("div", { id: "ai-out" });
+  d.replaceChildren(
+    h("div", { class: "row" }, h("button", { onclick: () => d.hidden = true }, "Close"), badge(lv)),
+    h("h2", {}, f.kind), h("p", { class: "muted small" }, "finding " + f.n + " · " + f.time + " · severity " + f.severity + " · session " + (f.session ?? "-") + " · " + (f.role || "-") + " · " + (f.harness || "chat")),
+    h("pre", {}, JSON.stringify(f.evidence, null, 2)),
+    h("div", { class: "row" },
+      f.session != null ? h("button", { onclick: () => { d.hidden = true; openConversation(f.session, f.role || "sensitive", f.harness || ""); } }, "Open the conversation") : null,
+      h("button", { onclick: () => runAnalysis({ ids: [f.n] }, analysis) }, "Pre-analyse with AI"),
+      f.session != null ? h("button", { onclick: () => runAnalysis({ session: f.session }, analysis) }, "Pre-analyse the whole session") : null),
+    analysis);
+  d.hidden = false; d.focus();
+}
+async function runAnalysis(body, out) {
+  out.replaceChildren(h("p", { class: "muted" }, "Asking the reviewer model…"));
+  try {
+    const r = await api("/api/analyse", body);
+    if (!r.ok) { out.replaceChildren(h("p", {}, r.error)); return; }
+    const a = r.assessment;
+    out.replaceChildren(h("h2", {}, "Pre-analysis by " + (r.model || "the reviewer")), h("p", { class: "small muted" }, "An aid to reading, not a verdict. It saw " + r.findings + " findings."),
+      a ? [h("p", {}, a.summary || ""), h("h2", {}, "Worth reading"), h("ul", {}, (a.priorities || []).map((x) => h("li", {}, "n=" + x.n + ": " + x.why))),
+           h("h2", {}, "Probably legitimate"), h("ul", {}, (a.probably_legitimate || []).map((x) => h("li", {}, "n=" + x.n + ": " + x.why))),
+           h("h2", {}, "Next checks"), h("ul", {}, (a.next_checks || []).map((x) => h("li", {}, x)))] : h("pre", {}, r.text));
+  } catch (e) { out.replaceChildren(h("p", {}, e.message)); }
+}
+$("analyse-all").addEventListener("click", () => { const d = $("drawer"); const out = h("div"); d.replaceChildren(h("button", { onclick: () => d.hidden = true }, "Close"), out); d.hidden = false; runAnalysis({ ids: CURRENT.slice(0, 40).map((f) => f.n) }, out); });
+
+/* conversations */
+async function loadSessions() {
+  const list = await api("/api/sessions"); $("conv").hidden = true; $("session-list").hidden = false;
+  $("session-list").replaceChildren(h("p", { class: "muted small" }, list.length + " sessions. Pick one to read the conversation with its triggers and findings."),
+    ...list.slice().reverse().map((s) => {
+      const p = s.persona; const nr = s.narrative;
+      return h("div", { class: "card lv" + s.worst.level },
+        h("div", { class: "row" }, h("strong", {}, "Session " + s.session), badge(s.worst.level), p ? h("span", {}, p.name || ("the " + p.role), " — ", p.org, p.real ? " (real person, local file)" : "") : null,
+          s.domain ? h("span", { class: "badge" }, s.domain) : null),
+        nr ? h("p", { class: "small" }, nr.done + " of " + nr.planned + " turns" + (nr.stopped ? " — stopped: " + nr.stopped : "") + " · triggers at turns " + nr.triggers.map((t) => t.turn + " (" + t.family + ")").join(", ")) : null,
+        h("div", { class: "row" },
+          h("button", { onclick: () => openConversation(s.session, "sensitive", "") }, "Chat, sensitive"), h("button", { onclick: () => openConversation(s.session, "control", "") }, "Chat, control"),
+          ...s.harness.map((x) => h("button", { onclick: () => openConversation(s.session, x.role, x.profile) }, x.profile + ", " + x.role + " (" + x.calls + " calls" + (x.interactions > 1 ? ", " + x.interactions + " turns" : "") + ")"))),
+        h("p", { class: "small muted" }, "Findings: " + s.worst.counts.map((n, i) => NAMES[i] + " " + n).join(" · ")));
+    }));
+}
+const flat = (list) => list.flat(Infinity).filter(Boolean);
+function bubble(who, text, cls, extras) {
+  return h("div", { class: "bubble " + cls }, h("div", { class: "who" }, who), h("div", { class: "text" }, text || "(empty)"), ...(extras || []));
+}
+async function openConversation(session, role, profile) {
+  showTab("sessions", false);
+  const c = await api("/api/conversation?" + new URLSearchParams({ session, role, profile }));
+  $("session-list").hidden = true; const box = $("conv"); box.hidden = false;
+  const lvByTurn = {}; c.findings.forEach((f) => { const t = f.evidence.turn; if (t != null) lvByTurn[t] = Math.max(lvByTurn[t] ?? 0, f.level); });
+  const trig = Object.fromEntries(c.triggers.map((t) => [t.turn, t])), bait = Object.fromEntries(c.bait.map((b) => [b.turn, b]));
+  const turns = c.turns.concat(c.manual.map((m, i) => ({ n: c.turns.length + i + 1, user: m.user, reply: m.reply, manual: true })));
+  const tl = h("div", { class: "timeline", role: "img", "aria-label": "Timeline: each bar is a turn, its colour the worst finding, a flag marks a trigger" },
+    ...turns.map((t) => { const lv = lvByTurn[t.n] ?? 0; const i = h("i", { class: "lv" + lv, title: "turn " + t.n + (trig[t.n] ? " · trigger " + trig[t.n].family : "") + (bait[t.n] ? " · bait " + bait[t.n].kind : "") + " · " + NAMES[lv] }); if (trig[t.n]) i.textContent = "⚑"; i.style.fontSize = "10px"; return i; }));
+  const who = c.persona ? (c.persona.name || ("the " + c.persona.role + " of " + c.persona.org)) : "Person";
+  const chat = h("div", { class: "chat", id: "chat" }, ...turns.map((t) => {
+    const lv = lvByTurn[t.n] ?? 0; const fs = c.findings.filter((f) => f.evidence.turn === t.n);
+    const marks = [trig[t.n] ? h("div", { class: "mark" }, "⚑ trigger (" + trig[t.n].family + ")") : null, bait[t.n] ? h("div", { class: "mark" }, "✎ bait said: " + bait[t.n].kind) : null, t.manual ? h("div", { class: "mark" }, "written by you") : null];
+    return h("div", { class: "pair", id: "turn-" + t.n },
+      bubble(who + " · turn " + t.n, t.user.length > 1500 ? t.user.slice(0, 1500) + "…" : t.user, "me", flat(marks)),
+      bubble("Model", t.reply, "model lv" + lv, fs.map((f) => h("div", { class: "small" }, badge(f.level), " ", f.kind, " ", h("span", { class: "muted" }, JSON.stringify(f.evidence).slice(0, 160))))));
+  }));
+  const loose = c.findings.filter((f) => f.evidence.turn == null);
+  const tools = c.calls.length ? [h("h2", {}, "Tool calls (" + c.calls.length + ")"), ...c.calls.map((x) => h("div", { class: "bubble tool" }, h("div", { class: "who" }, "turn " + x.turn + " · " + x.name + " · " + (x.role || "unknown") + (x.request ? " · request: " + String(x.request).slice(0, 80) : "")), h("code", {}, JSON.stringify(x.arguments).slice(0, 600))))] : [];
+  const composer = profile ? h("p", { class: "muted small" }, "A conversation under a harness is read-only. To write to the model, open the chat conversation of this session.") :
+    h("form", { class: "composer", onsubmit: async (e) => { e.preventDefault(); const ta = $("say"); const text = ta.value.trim(); if (!text) return; ta.disabled = true; $("send").disabled = true;
+        try { const r = await api("/api/chat", { session, role, text }); ta.value = ""; await openConversation(session, role, profile); toast(r.findings ? r.findings + " finding(s) from your message." : "Answered, no findings."); }
+        catch (err) { toast(err.message); ta.disabled = false; $("send").disabled = false; } } },
+      h("label", { class: "field" }, h("span", {}, "Write to the model, with this whole conversation as context. What it answers is scanned like any other answer."), h("textarea", { id: "say", rows: "3" })),
+      h("button", { class: "primary", id: "send", type: "submit" }, "Send"));
+  box.replaceChildren(...flat([h("div", { class: "row" }, h("button", { onclick: loadSessions }, "← Sessions"), h("strong", {}, "Session " + session + " · " + role + " · " + (profile || "chat")), h("span", { class: "muted small" }, c.turns.length + " turns")),
+    turns.length ? tl : null, chat, tools, loose.length ? [h("h2", {}, "Findings of the whole conversation"), ...loose.map((f) => h("div", { class: "card lv" + f.level }, badge(f.level), " ", f.kind, " ", h("span", { class: "muted small" }, JSON.stringify(f.evidence).slice(0, 300))))] : null,
+    composer]));
+  window.scrollTo(0, 0);
+}
+
+/* settings */
+const val = (id, v) => { const e = $(id); if (v === undefined) return e.type === "checkbox" ? e.checked : e.value; if (e.type === "checkbox") e.checked = !!v; else e.value = v ?? ""; };
+const group = (box, items, selected, name) => box.replaceChildren(...items.map((it) => h("label", { class: "check" }, h("input", { type: "checkbox", name, value: it.id, checked: selected.includes(it.id) }), h("span", {}, it.label || it.name, it.status ? h("span", { class: "badge" }, it.status) : null, it.hint ? h("span", { class: "muted small" }, " — " + it.hint) : null))));
+const picks = (box) => [...box.querySelectorAll("input:checked")].map((i) => i.value);
+async function loadSettings() {
+  [OPTIONS, CONFIG] = await Promise.all([api("/api/options"), api("/api/config")]); const c = CONFIG;
+  $("s-runtime").replaceChildren(...OPTIONS.runtimes.map((r) => h("option", { value: r.id }, r.name + " (" + r.base_url + ")"))); val("s-runtime", c.runtime || "generic");
+  $("s-vendor").replaceChildren(h("option", { value: "" }, "detect from the model name"), ...OPTIONS.vendors.map((v) => h("option", { value: v.id }, v.name))); val("s-vendor", c.vendor || "");
+  val("s-model", c.target.model); val("s-base", c.target.base_url); val("s-key", c.target.api_key);
+  const goals = $("goals"); const on = { chat: true, harness: (c.harnesses || []).length > 0, narrative: !!(c.narrative || {}).enabled, personas: !!(c.personas || {}).enabled };
+  group(goals, OPTIONS.goals, Object.keys(on).filter((k) => on[k]), "goal");
+  group($("harness-list"), OPTIONS.harnesses.map((p) => ({ id: p.id, name: p.name, status: p.status })), c.harnesses || [], "harness");
+  group($("persona-list"), OPTIONS.persona_categories, (c.personas || {}).categories?.length ? c.personas.categories : OPTIONS.persona_categories.map((x) => x.id), "persona");
+  const nv = c.narrative || {}; val("n-turns", nv.turns ?? 100); val("n-ctx", nv.context_tokens ?? 56000); val("n-reply", nv.reply_tokens ?? 700); val("n-harness", nv.harness_interactions ?? 20);
+  group($("trigger-list"), OPTIONS.triggers, nv.triggers || OPTIONS.triggers.map((t) => t.id), "trigger");
+  val("p-rate", c.sessions_per_hour); val("p-duration", c.duration); val("p-words", c.doc_words); val("p-research", c.research_share); val("p-hturns", c.harness_turns); val("p-tokens", c.max_tokens);
+  val("m-listener", (c.canary_listener || {}).enabled); val("m-monitor", (c.monitor || {}).base_url || "");
+  const r = c.reviewer || {}; val("r-base", r.base_url); val("r-model", r.model); val("r-key", r.api_key); val("a-min", (c.alerts || {}).min_severity || "high"); val("a-cmd", (c.alerts || {}).command || "");
+}
+$("apply-runtime").addEventListener("click", async () => {
+  try { await api("/api/runtime", { runtime: val("s-runtime"), model: val("s-model"), vendor: val("s-vendor"), base_url: "" }); await loadSettings(); toast("Address and monitor set for this engine."); } catch (e) { toast(e.message); }
+});
+$("save").addEventListener("click", async () => {
+  const goals = picks($("goals")); const harnesses = goals.includes("harness") ? picks($("harness-list")) : [];
+  const patch = {
+    target: { base_url: val("s-base"), model: val("s-model"), api_key: val("s-key") }, vendor: val("s-vendor") || null,
+    harnesses, personas: { enabled: goals.includes("personas"), categories: picks($("persona-list")) },
+    narrative: { enabled: goals.includes("narrative"), turns: +val("n-turns"), context_tokens: +val("n-ctx"), reply_tokens: +val("n-reply"), harness_interactions: +val("n-harness"), triggers: picks($("trigger-list")) },
+    sessions_per_hour: +val("p-rate"), duration: val("p-duration"), doc_words: +val("p-words"), research_share: +val("p-research"), harness_turns: +val("p-hturns"), max_tokens: +val("p-tokens"),
+    canary_listener: { enabled: val("m-listener") }, alerts: { min_severity: val("a-min"), command: val("a-cmd") },
+    reviewer: val("r-model") ? { kind: "openai", base_url: val("r-base"), model: val("r-model"), api_key: val("r-key"), extra_headers: {} } : null,
+  };
+  if (val("m-monitor")) patch.monitor = { base_url: val("m-monitor"), api_key: (CONFIG.monitor || {}).api_key || "" };
+  try { await api("/api/config", patch); $("save-msg").textContent = "Saved."; toast("Settings saved."); } catch (e) { $("save-msg").textContent = "Not saved: " + e.message; toast("Not saved: " + e.message); }
+});
+
+/* run and export */
+async function loadRun() {
+  const s = await refreshSummary(); const st = s.status || {};
+  $("run-status").textContent = s.running ? "Running (process " + s.pid + "). " + (st.sessions_done ?? st.sessions ?? "") + " " + (st.state || "") : "Not running. State folder: " + s.state_dir;
+  $("alerts").textContent = await (await fetch("/api/alerts")).text();
+}
+$("start").addEventListener("click", async () => { try { const r = await api("/api/start", {}); toast(r.already_running ? "Already running." : "Started."); setTimeout(loadRun, 800); } catch (e) { toast(e.message); } });
+$("stop").addEventListener("click", async () => { try { await api("/api/stop", {}); toast("Stop asked: the run ends after the current session."); setTimeout(loadRun, 800); } catch (e) { toast(e.message); } });
+document.querySelectorAll("[data-export]").forEach((b) => b.addEventListener("click", () => { const p = query(); p.set("format", b.dataset.export); location.href = "/api/export?" + p; }));
+
+/* start */
+(async () => {
+  try { OPTIONS = await api("/api/options"); const sel = $("f-harness"); OPTIONS.harnesses.forEach((p) => sel.append(h("option", { value: p.id }, p.id))); } catch (e) {}
+  await refreshSummary(); await loadFindings();
+  setInterval(async () => { if (!document.hidden) { try { const s = await refreshSummary(); if (s.running && !$("results").hidden) loadFindings(); } catch (e) {} } }, 5000);
+})();
+</script>
+</body>
+</html>

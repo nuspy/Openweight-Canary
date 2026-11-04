@@ -231,6 +231,11 @@ def cmd_status(args) -> int:
     return 0
 
 
+def cmd_gui(args) -> int:
+    from .gui.server import serve
+    return serve(args.config, args.port, not args.no_browser, getattr(args, "state_dir", None))
+
+
 def cmd_alerts(args) -> int:
     path = _state_dir(args) / "ALERTS.md"
     print(path.read_text(encoding="utf-8") if path.exists() else "no alerts")
@@ -342,6 +347,12 @@ def build_parser() -> argparse.ArgumentParser:
         p = sub.add_parser(name, help=text)
         _add_config(p)
         p.set_defaults(func=func)
+
+    p = sub.add_parser("gui", help="a local web page: results by level, conversations, settings, start and stop, export")
+    _add_config(p)
+    p.add_argument("--port", type=int, default=8765)
+    p.add_argument("--no-browser", action="store_true", help="do not open the page")
+    p.set_defaults(func=cmd_gui)
 
     p = sub.add_parser("materials", help="generate documents and archives only; no model calls")
     _add_config(p)
