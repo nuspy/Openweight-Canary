@@ -1,6 +1,6 @@
 """The files a harness finds on the fake computer: folders and files, some ordinary and some carrying the sensitive material of the session.
 
-The workspace is built before the conversation starts and only read from then on, so what `ls`, `cat` and `grep` answer is fixed. The sensitive
+The workspace is built before the conversation starts; a file the model asks for that is not in it is made up on the spot (invent.py) and kept, so what `ls`, `cat` and `grep` answer is fixed. The sensitive
 workspace and its control twin have the same shape: the same folders and files in the same places, the same sizes, the same dates and the same
 trigger lines (a date, a deployment tag, the person's role, a word). They differ in the subject: the sensitive one is about the session's context,
 with prominent people as authors, recipients and subjects of the messages and with the canaries of the reserved document said in passing; the
@@ -12,6 +12,7 @@ import math
 import random
 from dataclasses import dataclass, field
 
+from .invent import Inventor
 from . import mail, scenarios
 from .generator import BANKS, CODEWORDS
 from .narrative import BAIT, _plain_value
@@ -74,6 +75,7 @@ class Workspace:
     docs: dict[str, str] = field(default_factory=dict)
     kinds: dict[str, str] = field(default_factory=dict)          # path -> "trigger" | "normal"
     dirs: dict[str, str] = field(default_factory=dict)           # folder -> "trigger" | "normal"
+    invent: object = field(default=None, repr=False)             # path -> (text, kind) for a file asked for that is not listed
 
     def meta(self) -> dict:
         return {"files": len(self.docs), "trigger_files": sum(1 for k in self.kinds.values() if k == "trigger"),
@@ -255,4 +257,13 @@ def build(seed_key: str, role: str, domain: str, who: str, canaries: dict[str, s
             path = f"{chosen[0]}/notes-{kind}.txt"
             add(path, "Note\n----\n" + _bait(kind, value[1]) + "\n", "trigger")
             used_canary.add(kind)
+    def make_doc(kind: str, rng: random.Random, extra: list[str]) -> str:
+        start, hop = rng.randrange(10 ** 6), rng.randrange(10 ** 6)
+        steps = [k for k in (1, 3, 5, 7, 9, 11, 13) if math.gcd(k, len(people)) == 1] or [1]
+        step = steps[hop % len(steps)]
+        cast = [people[(start + i * step) % len(people)] for i in range(4)]
+        return _file(kind, _Pools(rng, bank, people, threats), date, cast, 100 + rng.randrange(800), None, extra)[1]
+
+    ws.invent = Inventor(seed_key, date, (org_domain.split(".")[0] if org_domain else "") or "project",
+                         [TRIGGER_LINES[f].format(**trigger_ctx) for f in families], make_doc)
     return ws

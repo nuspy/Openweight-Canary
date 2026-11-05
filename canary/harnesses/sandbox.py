@@ -1,6 +1,7 @@
 """Fake tool world: serves the reserved documents and records every other call without running it."""
 from __future__ import annotations
 
+import datetime as dt
 import fnmatch
 import json
 import re
@@ -42,10 +43,33 @@ class FakeWorld:
         return norm_path(raw, self.ctx["cwd"])
 
     def _lookup(self, raw: str):
-        hit = self.docs.get(self._path(raw).lower())
+        hit = self.docs.get(self._path(raw).lower()) or self._invent(raw)
         if hit:
             self.touched.add(hit[0])
         return hit
+
+    def _invent(self, raw: str):
+        """The content of a file the model asked for that the computer did not list: made up once, coherent with the
+        workspace, kept for the rest of the conversation."""
+        ws = self.ctx.get("workspace")
+        made = getattr(ws, "invent", None)
+        if made is None or outside_project(raw, self.ctx["cwd"]):
+            return None
+        path = self._path(raw)
+        got = made(path)
+        if got is None:
+            return None
+        text, kind = got
+        self.docs[path.lower()] = (path, text)
+        ws.docs[path], ws.kinds[path] = text, kind
+        return self.docs[path.lower()]
+
+    def _store(self, raw: str, text: str, append: bool = False) -> None:
+        if outside_project(raw, self.ctx["cwd"]):
+            return
+        path = self._path(raw)
+        old = self.docs.get(path.lower())
+        self.docs[path.lower()] = (path, (old[1] if old and append else "") + text)
 
     def tree(self) -> Tree:
         files = {p: len(t.encode("utf-8")) for p, t in self.docs.values()}
@@ -138,11 +162,18 @@ class FakeWorld:
         return out
 
     def _simple(self, cmd: str) -> str:
-        first = cmd.split()[0] if cmd.split() else ""
+        words = cmd.split()
+        first = words[0] if words else ""
+        written = self._redirect(cmd)
+        if written is not None:
+            return written
         if first == "pwd":
             return self.ctx["cwd"]
         if first == "echo":
             return cmd[len(first):].strip().strip("\"'")
+        facts = self._facts(first, words, cmd)
+        if facts is not None:
+            return facts
         if self.has_workspace and first in ("ls", "dir"):
             return self.tree().ls(cmd)
         if self.has_workspace and first == "find":
@@ -153,17 +184,131 @@ class FakeWorld:
             return self.listing({})
         if cmd.startswith("git status"):
             return f"On branch {self.ctx['git_branch']}\n{self.ctx['git_status']}"
-        if first in ("cat", "type", "head", "tail", "less", "more", "nl", "wc", "grep", "rg"):
-            for raw in re.findall(r"[^\s|<>;&]+\.[A-Za-z0-9]{1,5}\b", cmd):
+        if first in ("cat", "type", "head", "tail", "less", "more", "nl", "wc", "grep", "rg", "stat", "file"):
+            for raw in re.findall(r"[^\s|<>;&]+\.[A-Za-z0-9]{1,5}\b|[^\s|<>;&]*(?:akefile|ockerfile|ICENSE|\.gitignore)", cmd):
                 hit = self._lookup(raw)
                 if hit:
-                    return hit[1][:MAX_READ] if first != "wc" else f"{len(hit[1].splitlines())} {hit[0]}"
+                    return self._file_answer(first, cmd, hit)
             if self.has_workspace and first in ("grep", "rg"):
                 words = [t for t in cmd.split()[1:] if not t.startswith("-")]
                 return self.grep({"pattern": words[0].strip("\"'")}) if words else "No matches found"
             target = next((t for t in cmd.split()[1:] if not t.startswith("-")), "")
             return f"{first}: {target}: No such file or directory" if target else "No such file or directory"
         return ""
+
+    def _file_answer(self, first: str, cmd: str, hit) -> str:
+        path, text = hit
+        if first == "wc":
+            lines, size = len(text.splitlines()), len(text.encode("utf-8"))
+            flags = [w for w in cmd.split()[1:] if w.startswith("-")]
+            if "-l" in flags:
+                return f"{lines} {path}"
+            if "-c" in flags:
+                return f"{size} {path}"
+            if "-w" in flags:
+                return f"{len(text.split())} {path}"
+            return f"{lines} {len(text.split())} {size} {path}"
+        if first in ("head", "tail"):
+            return _filter(" ".join(w for w in cmd.split() if w == first or w.startswith("-") or w.isdigit()), text[:MAX_READ])
+        if first == "stat":
+            return f"  File: {path}\n  Size: {len(text.encode('utf-8'))}\tRegular file\nAccess: (0644/-rw-r--r--)  Uid: ( 1000/{self.ctx['user']})"
+        if first == "file":
+            return f"{path}: ASCII text"
+        return text[:MAX_READ]
+
+    def _redirect(self, cmd: str):
+        """`echo text > file` and `>>`: the file now holds the text (in this conversation only)."""
+        m = re.match(r"^(?:echo|printf)\s+(.*?)\s*(>>?)\s*([^\s>|]+)\s*$", cmd)
+        if not m:
+            return None
+        self._store(m.group(3), m.group(1).strip().strip("\"'") + "\n", append=m.group(2) == ">>")
+        return ""
+
+    def _stamp(self, back: int = 0) -> dt.datetime:
+        day = dt.date.fromisoformat(self.ctx["date"]) - dt.timedelta(days=back)
+        return dt.datetime(day.year, day.month, day.day, 9, 14, 2)
+
+    def _facts(self, first: str, words: list[str], cmd: str):
+        """Answers of the small commands that say something about the machine; None when `first` is not one of them."""
+        user, win = self.ctx["user"], str(self.ctx.get("os", "")).lower().startswith("win")
+        host = f"{user}-laptop"
+        if first in ("cd", "mkdir", "chmod", "export", "source", "set", "clear", "sleep", "true"):
+            return ""
+        if first == "touch":
+            for raw in words[1:]:
+                if not raw.startswith("-") and not self.docs.get(self._path(raw).lower()):
+                    self._store(raw, "")
+            return ""
+        if first in ("rm", "del"):
+            out = []
+            for raw in (w for w in words[1:] if not w.startswith("-")):
+                key = self._path(raw).lower()
+                if key in self.docs:
+                    del self.docs[key]
+                else:
+                    out.append(f"rm: cannot remove '{raw}': No such file or directory")
+            return "\n".join(out)
+        if first in ("cp", "mv", "copy", "move"):
+            args = [w for w in words[1:] if not w.startswith("-")]
+            hit = self._lookup(args[0]) if len(args) == 2 else None
+            if len(args) == 2 and hit:
+                self._store(args[1], hit[1])
+                if first in ("mv", "move"):
+                    self.docs.pop(self._path(args[0]).lower(), None)
+                return ""
+            return f"{first}: cannot stat '{args[0]}': No such file or directory" if args else ""
+        if win:
+            return None
+        day = self._stamp()
+        if first == "date":
+            return day.strftime("%a %b %e %H:%M:%S UTC %Y").replace("  ", " ")
+        if first == "whoami":
+            return user
+        if first == "id":
+            return f"uid=1000({user}) gid=1000({user}) groups=1000({user}),27(sudo)"
+        if first == "hostname":
+            return host
+        if first == "uname":
+            return f"Linux {host} 6.5.0-35-generic #35-Ubuntu SMP x86_64 GNU/Linux" if "-a" in words else "Linux"
+        if first == "uptime":
+            return " 09:14:02 up 3 days,  4:21,  1 user,  load average: 0.21, 0.18, 0.15"
+        if first in ("python", "python3") and any(w in ("--version", "-V") for w in words):
+            return "Python 3.11.6"
+        if first == "node" and any(w in ("-v", "--version") for w in words):
+            return "v20.11.1"
+        if first == "which" and len(words) > 1:
+            return f"/usr/bin/{words[1]}"
+        if first == "df":
+            return ("Filesystem      Size  Used Avail Use% Mounted on\n/dev/nvme0n1p2  468G  211G  234G  48% /\n"
+                    "tmpfs            16G  1.2M   16G   1% /run")
+        if first == "ps":
+            return (f"USER         PID %CPU %MEM COMMAND\n{user}      1204  0.1  0.4 bash\n{user}      2310  0.0  0.2 ps\n"
+                    f"root         811  0.0  0.1 /usr/sbin/cron")
+        if first in ("env", "printenv"):
+            return (f"USER={user}\nHOME=/home/{user}\nSHELL=/bin/bash\nPWD={self.ctx['cwd']}\nLANG=en_US.UTF-8\n"
+                    "PATH=/usr/local/bin:/usr/bin:/bin")
+        if first == "du":
+            total = sum(len(t.encode("utf-8")) for _, t in self.docs.values())
+            return f"{max(1, total // 1024)}K\t."
+        if first == "git":
+            sub = words[1] if len(words) > 1 else ""
+            if sub == "--version":
+                return "git version 2.43.0"
+            if sub == "branch":
+                return f"* {self.ctx['git_branch']}"
+            if sub in ("diff", "stash", "fetch", "pull"):
+                return ""
+            if sub == "log":
+                import hashlib
+                msgs = ("Update notes", "Fix typo in the readme", "Initial commit")
+                one = "--oneline" in words
+                out = []
+                for i, msg in enumerate(msgs):
+                    h = hashlib.sha1(f"{self.ctx['date']}{i}".encode()).hexdigest()
+                    when = self._stamp(3 * i).strftime("%a %b %e %H:%M:%S %Y +0000").replace("  ", " ")
+                    out.append(f"{h[:7]} {msg}" if one else f"commit {h}\nAuthor: {user} <{user}@{host}>\nDate:   {when}\n\n    {msg}\n")
+                return "\n".join(out)
+        return None
 
     def web(self, role: str, name: str, args) -> str:
         urls = tool_urls(args)
@@ -189,6 +334,10 @@ class FakeWorld:
             return self.web(role, name, args)
         if role in ("write", "edit", "patch"):
             self._record(role, name, args)
+            body = next((v for k, v in args.items() if k in ("content", "text", "file_text", "data", "contents") and isinstance(v, str)), None)
+            if role == "write" and body is not None:
+                for raw in tool_paths(args)[:1]:
+                    self._store(raw, body)
             return self.results.get(name) or ("File written successfully." if role == "write" else "The edit was applied.")
         if role == "todo":
             return self.results.get(name, "Todo list updated.")
