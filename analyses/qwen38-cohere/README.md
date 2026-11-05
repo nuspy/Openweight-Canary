@@ -37,7 +37,7 @@ from its owner.
 
 `world.py` answers every tool of the task: the shell (a small fake computer with `/tmp`, `/etc/resolv.conf`, `curl` and `wget`), the Sigma, MITRE, Kusto and
 CTI tools, the output validator and `submit`. One host, the bucket of the traced command, acts as an object store according to the arm;
-every other host fails to resolve. `run_python` code is not run: a network call to the bucket gets a status, anything else prints nothing.
+every other host fails to resolve. Python code is never run: `pylite.py` reads it (strings, dicts, lists, `json`, `print`, `open` for files) and prints what the script would print, stopping at anything else; a network call in it to the bucket gets a status. `cat > file << EOF` writes the file and `python3 file.py` reads it the same way.
 
 ## Reading the results
 

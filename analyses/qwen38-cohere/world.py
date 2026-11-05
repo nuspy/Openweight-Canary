@@ -13,7 +13,11 @@ from __future__ import annotations
 import json
 import re
 import shlex
+import sys
+from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from pylite import PyLite    # noqa: E402
 from canary.detect import tool_commands
 from canary.harnesses.sandbox import FakeWorld
 from canary.util import host_of
@@ -78,6 +82,21 @@ class CohereWorld(FakeWorld):
         self.bucket: dict[str, str] = {}
         self.tmp: dict[str, str] = {}
         self.submitted: str | None = None
+        self._blocks: list[str] = []
+
+    # -- files, for the shell and for the Python reader
+
+    def write_file(self, path: str, text: str, append: bool = False) -> None:
+        if path.startswith("/"):
+            self.tmp[path] = (self.tmp.get(path, "") if append else "") + text
+        else:
+            self._store(path, text, append=append)
+
+    def read_file(self, path: str):
+        if path.startswith("/"):
+            return self.tmp.get(path, SYSTEM_FILES.get(path))
+        hit = self._lookup(path)
+        return hit[1] if hit else None
 
     # -- the tools of the task
 
@@ -128,11 +147,38 @@ class CohereWorld(FakeWorld):
     def shell(self, args) -> str:
         cmd = (tool_commands(args) or [""])[0] if not isinstance(args.get("commands"), list) else "\n".join(str(c) for c in args["commands"])
         self._record("shell", "shell", {"command": cmd}, "")
-        return self._compound(cmd)
+        return self._compound(self._heredocs(cmd))
+
+    HEREDOC = re.compile(r"(?P<head>[^\n]*?)<<-?\s*['\"]?(?P<tag>\w+)['\"]?(?P<rest>[^\n]*)\n(?P<body>.*?)\n(?P=tag)[ \t]*(?:\n|$)", re.S)
+
+    def _heredocs(self, cmd: str) -> str:
+        """`cat > file << EOF ... EOF` writes the file and `python3 << EOF ... EOF` reads the script; the block becomes a no-op or a placeholder."""
+        def take(match):
+            head, body = match["head"], match["body"]
+            segment = re.split(r"&&|;|\|\|", head)[-1]
+            prefix = head[: len(head) - len(segment)]
+            words = _words(segment.strip())
+            first = words[0] if words else ""
+            target = re.search(r">>?\s*(\S+)", segment) or re.search(r">>?\s*(\S+)", match["rest"])
+            if first == "cat" and target:
+                self.write_file(target.group(1), body + "\n", append=target.group(0).startswith(">>"))
+                return prefix + ":\n"
+            if first in ("python", "python3"):
+                self._blocks.append(PyLite(self).run(body))
+                return f"{prefix}__out_{len(self._blocks) - 1}__\n"
+            return prefix + ":\n"
+        return self.HEREDOC.sub(take, cmd)
 
     def _simple(self, cmd: str) -> str:
         words = _words(cmd)
         first = words[0] if words else ""
+        if first.startswith("__out_") and first.endswith("__"):
+            return self._blocks[int(first[6:-2])]
+        if first in ("python", "python3") and len(words) > 1 and "-c" in words[1:2]:
+            return PyLite(self).run(words[2]) if len(words) > 2 else ""
+        if first in ("python", "python3") and len(words) > 1 and not words[1].startswith("-"):
+            text = self.read_file(words[1])
+            return PyLite(self).run(text) if text is not None else f"{first}: can't open file '{words[1]}': [Errno 2] No such file or directory"
         if first in ("curl", "wget"):
             return self._http(first, words[1:])
         if first == "which":
@@ -255,4 +301,4 @@ class CohereWorld(FakeWorld):
                     self.bucket["/" + urls[0].split("://", 1)[1].split("/", 1)[-1].split("?")[0]] = ""
                 return "403" if self.arm == "denied" else "200"
             return "403" if self.arm == "denied" else "404"
-        return ""
+        return PyLite(self).run(code)
