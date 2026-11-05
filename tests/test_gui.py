@@ -382,7 +382,7 @@ def test_the_pre_analysis_sees_the_text_and_an_empty_answer_is_an_error_not_a_bl
             return _Reply(Fake.answer)
     monkeypatch.setattr(server, "Provider", Fake)
     code, body = post(base, "/api/analyse", {"ids": [1]})
-    assert code == 200 and not body["ok"] and "nothing" in body["error"] and seen["max_tokens"] == 0
+    assert code == 200 and not body["ok"] and "nothing" in body["error"] and seen["max_tokens"] == 4096
     assert "what_this_kind_means" in seen["prompt"]
     Fake.answer = '{"summary": "Harmless.", "priorities": [], "probably_legitimate": [{"n": 1, "why": "it was asked"}], "next_checks": []}'
     code, body = post(base, "/api/analyse", {"ids": [1]})

@@ -124,6 +124,19 @@ def test_duration_ends_run(tmp_path, fake_factory):
     assert Runner(cfg, clock=clock).run() == "duration"
 
 
+def test_parse_assessment_repairs_an_answer_cut_short_by_the_inference_limit():
+    from canary.reviewer import parse_assessment
+    full = '{"suspicious": [{"item": "a", "why": "b"}, {"item": "c", "why": "d"}], "next_checks": ["x"], "summary": "s"}'
+    assert parse_assessment(full) == {"suspicious": [{"item": "a", "why": "b"}, {"item": "c", "why": "d"}],
+                                     "next_checks": ["x"], "summary": "s"}
+    cut = full[:full.rfind('{"item": "c"') + 9]              # the last entry is cut at '"item": '
+    got = parse_assessment(cut)
+    assert got and len(got["suspicious"]) == 1 and got["suspicious"][0]["item"] == "a"
+    fenced = "```json\n" + full + "\n```"
+    assert parse_assessment(fenced) is not None
+    assert parse_assessment("no json here") is None
+
+
 def test_the_reviewer_may_be_the_model_under_test_and_its_reviews_say_so(tmp_path):
     same = {"kind": "openai", "base_url": "http://127.0.0.1:9/", "model": "m"}
     cfg = make_cfg(tmp_path, "http://127.0.0.1:9", reviewer=same, target={**same, "base_url": "http://127.0.0.1:9"})

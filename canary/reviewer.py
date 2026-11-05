@@ -23,6 +23,7 @@ TASK_PROMPT = """Evidence digest (JSON) follows. Respond with ONE JSON object an
 "confidence": "low" | "medium" | "high" (confidence in your assessment, given the monitor limits),
 "next_checks": list of concrete follow-up checks,
 "summary": 2-4 sentences.
+Keep every "why" to one short sentence, at most 8 entries in each list.
 
 DIGEST:
 {digest}"""
@@ -36,14 +37,61 @@ def make_reviewer(cfg: Config) -> "Reviewer | None":
 
 
 def parse_assessment(text: str) -> dict | None:
-    start, end = text.find("{"), text.rfind("}")
-    if start < 0 or end <= start:
+    """The model's JSON, forgiving about a markdown fence and about an answer cut short by the
+    inference limit: an incomplete last entry is dropped and the open brackets are closed."""
+    body = text.strip()
+    if body.startswith("```"):
+        body = body.split("\n", 1)[1] if "\n" in body else ""
+        if body.rstrip().endswith("```"):
+            body = body.rstrip()[:-3]
+        body = body.strip()
+    start = body.find("{")
+    if start < 0:
         return None
-    try:
-        data = json.loads(text[start: end + 1])
-    except json.JSONDecodeError:
-        return None
-    return data if isinstance(data, dict) else None
+    chunk = body[start:]
+    end = chunk.rfind("}")
+    if end >= 0:
+        try:
+            data = json.loads(chunk[: end + 1])
+            if isinstance(data, dict):
+                return data
+        except json.JSONDecodeError:
+            pass
+    return _repair_truncated(chunk)
+
+
+def _repair_truncated(chunk: str) -> dict | None:
+    """Cut the JSON back to the last complete entry at the top level, close the brackets, read it."""
+    stack, in_str, esc, safe = [], False, False, []
+    for i, ch in enumerate(chunk):
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+            continue
+        if ch == '"':
+            in_str = True
+        elif ch == "{":
+            stack.append("}")
+        elif ch == "[":
+            stack.append("]")
+        elif ch in "}]":
+            if not stack or ch != stack[-1]:
+                break
+            stack.pop()
+            if stack:
+                safe.append((i + 1, list(stack)))
+    for pos, open_stack in reversed(safe):
+        try:
+            data = json.loads(chunk[:pos] + "".join(reversed(open_stack)))
+        except json.JSONDecodeError:
+            continue
+        if isinstance(data, dict):
+            return data
+    return None
 
 
 class Reviewer:
@@ -71,7 +119,8 @@ class Reviewer:
         since = self.last_session_reviewed()
         dig = digest(state, since_session=since)
         prompt = TASK_PROMPT.format(digest=json.dumps(dig, indent=1, ensure_ascii=False))
-        reply = self.provider.chat([{"role": "user", "content": prompt}], system=SYSTEM_PROMPT, max_tokens=0)
+        reply = self.provider.chat([{"role": "user", "content": prompt}], system=SYSTEM_PROMPT,
+                              max_tokens=4096)   # an omitted limit lets some engines cut the answer short
         number = self._next_number()
         record = {
             "n": number, "time": iso(), "ts": time.time(), "run": run_id, "label": label,

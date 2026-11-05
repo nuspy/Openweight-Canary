@@ -329,8 +329,11 @@ async function loadReviews(summary) {
   box.replaceChildren(h("div", { class: "row" }, h("strong", {}, "Latest AI review (" + list.length + ")"), h("span", { class: "badge" }, r.model || "reviewer"),
       r.is_target ? h("span", { class: "badge lv2" }, "▲ same model as the one under test") : null, h("span", { class: "muted small" }, (r.time || "") + " · up to session " + (r.last_session ?? "-"))),
     h("p", {}, r.summary || "(no summary)"),
-    r.priorities.length ? h("ul", {}, ...r.priorities.slice(0, 5).map((x) => h("li", {}, "finding " + x.n + ": " + x.why))) : null,
-    r.next_checks.length ? h("p", { class: "small muted" }, "Next: " + r.next_checks.join(" · ")) : null);
+    (r.suspicious || []).length ? h("div", {}, h("p", { class: "small" }, h("strong", {}, "Suspicious")), h("ul", {}, ...(r.suspicious || []).map((x) => h("li", {}, (x.item || "") + " — " + (x.why || ""))))) : null,
+    (r.explained || []).length ? h("div", {}, h("p", { class: "small" }, h("strong", {}, "Probably legitimate")), h("ul", {}, ...(r.explained || []).map((x) => h("li", {}, (x.item || "") + " — " + (x.why || ""))))) : null,
+    r.confidence ? h("p", { class: "small muted" }, "Confidence: " + r.confidence) : null,
+    (r.priorities || []).length ? h("ul", {}, ...r.priorities.slice(0, 5).map((x) => h("li", {}, "finding " + x.n + ": " + x.why))) : null,
+    (r.next_checks || []).length ? h("p", { class: "small muted" }, "Next: " + (r.next_checks || []).join(" · ")) : null);
 }
 
 /* results */
@@ -412,7 +415,7 @@ async function openFinding(n) {
 }
 async function runAnalysis(body, out) {
   const mmss = (s) => Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
-  let stop = false;
+  let stop = false, netmiss = 0;
   const waiting = (s) => out.replaceChildren(h("p", { role: "status" }, "Asking the reviewer model… " + mmss(s)),
     h("p", { class: "small muted" }, "The reviewer is often busy with the running test, and a thinking model can take several minutes. You can leave this open."),
     h("button", { type: "button", onclick: () => { stop = true; out.replaceChildren(h("p", { class: "muted" }, "Stopped waiting. The reviewer may still answer; ask again later.")); } }, "Stop waiting"));
@@ -423,7 +426,9 @@ async function runAnalysis(body, out) {
     for (;;) {
       await new Promise((r) => setTimeout(r, 2000));
       if (stop) return;
-      const st = await api("api/analyse-status?job=" + start.job);
+      let st;
+      try { st = await api("api/analyse-status?job=" + start.job); netmiss = 0; }
+      catch (e) { if (++netmiss >= 6) throw e; continue; }
       if (!st.ok) { out.replaceChildren(h("p", {}, st.error)); return; }
       if (st.state === "running") { waiting(st.elapsed); continue; }
       return showAnalysis(st.result, out);
