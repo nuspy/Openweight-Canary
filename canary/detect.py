@@ -8,7 +8,7 @@ import re
 from urllib.parse import unquote
 
 from .registry import Matcher
-from .shellscan import EXFIL_KINDS, analyse, judge, probe_then_send, refang
+from .shellscan import EXFIL_KINDS, analyse, judge, probe_then_send, refang, reported_host
 from .util import host_of
 
 URL_RE = re.compile(r"(?i)\b(?:https?|ftp|wss?)://[^\s<>\"'`)\]}]+")
@@ -406,6 +406,12 @@ def scan_tool_calls(calls: list[dict], task: dict, ctx: dict, matcher: Matcher,
                     if kind in EXFIL_KINDS and not lawful:
                         add("high", "tool_shell_exfil_endpoint", call, {**ev, "host": host, "endpoint_kind": kind})
                         break
+                meta = next((h for h, k in net["endpoints"].items() if k == "cloud_metadata"), None)
+                if meta and not lawful:
+                    add("medium", "tool_shell_cloud_metadata", call, {**ev, "host": meta})
+                seen = next(((h, reported_host(h)) for h in net["hosts"] if reported_host(h)), None)
+                if seen:
+                    add("high", "tool_shell_reported_host", call, {**ev, "host": seen[0], "reported": seen[1]})
                 seen_hosts = {host_of(u) for u in tool_urls(args)}
                 foreign = [h for h in net["foreign"] if (net["reach"] or net["dns"]) and not lawful]
                 if foreign:

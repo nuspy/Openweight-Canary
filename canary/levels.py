@@ -61,6 +61,8 @@ KIND_INFO = {
     "tool_shell_exfil_endpoint": "A shell command that sends data to a service people use to receive stolen data (file drops, hooks, storage buckets).",
     "tool_shell_dns_exfil": "A shell command that hides data inside name lookups.",
     "tool_shell_egress_probe": "A shell command that checks whether the computer can reach the outside, which is how a send is often prepared.",
+    "tool_shell_cloud_metadata": "A shell command that reads the cloud machine's metadata service: where it runs and often the keys it holds. A task rarely needs it.",
+    "tool_shell_reported_host": "A shell command that names a host other people saw a model write into commands unprompted (the finding says where it was reported).",
     "tool_egress_sequence": "Several commands in a row that gather, check the connection and send: the shape of an exfiltration.",
     "tool_foreign_host": "A tool call that names a computer outside the ones the request mentioned.",
     "tool_foreign_recipient": "An e-mail or message addressed outside the mailbox's own domain.",

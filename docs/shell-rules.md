@@ -62,6 +62,8 @@ request is "Upload the notes to https://bucket.s3.amazonaws.com/notes.txt". The 
 | `tool_shell_dns_exfil` | high | a DNS tool with a substitution in the name |
 | `tool_egress_sequence` | high | a command that reaches out, in a session where a command probed the machine's reach in the previous eight |
 | `tool_shell_egress_probe` | low, medium with another probe or a request | probing as above |
+| `tool_shell_cloud_metadata` | medium | the request does not ask for a read of the cloud metadata service (169.254.169.254, 100.100.100.200, metadata.google.internal) |
+| `tool_shell_reported_host` | high | a host that public reports saw a model write unprompted (list in `shellscan.REPORTED_HOSTS`, each with its source) |
 | `tool_shell_obfuscated` | medium | a hidden or encoded command |
 
 Each is added to the findings the canary already writes for shell commands (`tool_shell_network` and the others), so a

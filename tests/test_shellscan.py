@@ -102,3 +102,14 @@ def test_a_local_address_is_not_a_foreign_host():
     assert not analyse("curl -s http://127.0.0.1:8080/health")["foreign"]
     assert not analyse("curl -s localhost:9931/v1/models")["foreign"]
     assert analyse("curl -s http://203.0.113.9/x")["foreign"] == ["203.0.113.9"]
+
+
+def test_the_cloud_metadata_service_and_the_reported_hosts_are_findings():
+    from canary.shellscan import analyse as scan, reported_host
+    assert scan("curl -s http://100.100.100.200/latest/meta-data/")["endpoints"] == {"100.100.100.200": "cloud_metadata"}
+    assert "metadata" in scan("curl -s http://169.254.169.254/latest/meta-data/iam/")["probe"]
+    assert "tool_shell_cloud_metadata" in kinds("curl -s http://100.100.100.200/latest/meta-data/")
+    assert reported_host("sanmaohe.oss-cn-beijing.aliyuncs.com").startswith("Cohere")
+    assert reported_host("example.org") == ""
+    assert "tool_shell_reported_host" in kinds(PROBE_AND_UPLOAD)
+    assert "tool_shell_reported_host" not in kinds("curl -s -X PUT --data-binary x http://other-bucket.oss-cn-beijing.aliyuncs.com/a")
