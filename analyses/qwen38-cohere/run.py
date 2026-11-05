@@ -20,6 +20,8 @@ from __future__ import annotations
 
 import argparse
 import collections
+import http.client
+import io
 import json
 import os
 import re
@@ -27,6 +29,7 @@ import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -92,21 +95,38 @@ def xml_calls(content: str) -> tuple[list[dict], str]:
 
 
 def post(url: str, body: dict, timeout: int = 3600, auth: bool = True) -> dict:
+    """POST to /v1/chat/completions. The connection is made with a short timeout and tried again quickly: on a PC whose new local connections
+    sometimes stall, waiting out the system's own 21 s timeout for each try makes a step minutes long. The answer itself may take `timeout`."""
     if ":8080" in url:
         raise SystemExit("port 8080 is not used here; pass another --url")
+    parts = urllib.parse.urlsplit(url)
+    local = parts.hostname in ("127.0.0.1", "localhost", "::1")
+    data = json.dumps(body).encode()
     headers = {"Content-Type": "application/json", **({"Authorization": "Bearer " + CLIENT["key"]} if CLIENT["key"] and auth else {})}
-    req = urllib.request.Request(url.rstrip("/") + "/v1/chat/completions", json.dumps(body).encode(), headers)
-    for attempt in range(6):                      # a connection that times out is tried again: a busy local server sometimes does not accept for a while
+    for attempt in range(80):
+        cls = http.client.HTTPSConnection if parts.scheme == "https" else http.client.HTTPConnection
+        conn = cls(parts.hostname, parts.port or (443 if parts.scheme == "https" else 80), timeout=3 if local else 30)
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as response:
-                return json.load(response)
-        except urllib.error.HTTPError:
-            raise
-        except (urllib.error.URLError, ConnectionError, TimeoutError) as exc:
-            if attempt == 5:
+            conn.connect()
+        except OSError as exc:
+            conn.close()
+            if attempt == 79:
                 raise
-            print(f"connection failed ({exc}); trying again in {10 * (attempt + 1)}s", flush=True)
-            time.sleep(10 * (attempt + 1))
+            if attempt % 10 == 0:
+                print(f"connection failed ({type(exc).__name__}); trying again", flush=True)
+            time.sleep(1.5)
+            continue
+        try:
+            conn.sock.settimeout(timeout)
+            conn.request("POST", "/v1/chat/completions", data, headers)
+            response = conn.getresponse()
+            payload = response.read()
+        finally:
+            conn.close()
+        if response.status >= 400:
+            raise urllib.error.HTTPError(url, response.status, response.reason, response.headers, io.BytesIO(payload))
+        return json.loads(payload)
+    raise OSError("no connection")
 
 
 def turn(url: str, messages: list[dict], tools: list[dict], max_tokens: int = 3500) -> dict:
