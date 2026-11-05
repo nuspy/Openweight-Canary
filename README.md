@@ -259,3 +259,7 @@ harnesses that the profiles reproduce stay under those harnesses' own licenses.
 ## Start the page
 
 `run-canary.bat` (Windows), `run-canary.ps1` (PowerShell) or `./run-canary.sh` (Linux, macOS) start the page. Optional: the config file and the port (default 8765; 8080 is refused). If `canary.json` does not exist, a starting one is written. Nothing runs until you start it, and the analysis starts only from the page's Start button.
+
+## Analyses
+
+`analyses/qwen38-cohere/` is a separate analysis, run with its own `run-analysis.sh` or `run-analysis.ps1`: Qwen3.8-Flash-Next in the context of the Cohere report (the first turn, what follows a probe answered with a made-up result, the tokens of the bucket name). See its README.

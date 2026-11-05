@@ -8,3 +8,5 @@ build/
 dist/
 canary.json
 sources.json
+analyses/*/data/
+analyses/*/results/
