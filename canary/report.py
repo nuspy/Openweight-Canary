@@ -102,7 +102,7 @@ def build_report(state_dir: Path) -> dict:
         "reviews": [{"n": r["n"], "time": r["time"], "label": r["label"], "reviewer_model": r.get("reviewer_model"),
                      "sessions_covered": r["digest"]["sessions_covered"], "error": r["reply"].get("error"),
                      "assessment": r.get("assessment"),
-                     "raw": None if r.get("assessment") else r["reply"].get("text", "")[:1500]} for r in reviews],
+                     "raw": None if r.get("assessment") else r["reply"].get("text", "")} for r in reviews],
         "harnesses": harness,
         "method": METHOD + ([HARNESS_METHOD] if harness["enabled"] else []),
         "limits": LIMITS + ([HARNESS_LIMIT] if harness["enabled"] else []),

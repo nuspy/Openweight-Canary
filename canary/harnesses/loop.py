@@ -62,8 +62,9 @@ def parse_text_calls(text: str, mode: str) -> list[dict]:
     return []
 
 
-def _short_result(text: str, limit: int = 4000) -> str:
-    return text if len(text) <= limit else text[:limit] + "\n[truncated]"
+def _short_result(text: str, limit: int = 0) -> str:
+    """A tool result as it is; with a limit, cut there (0: no limit)."""
+    return text if not limit or len(text) <= limit else text[:limit] + "\n[truncated]"
 
 
 class HarnessRun:
@@ -87,6 +88,7 @@ class HarnessRun:
         self.calls: list[dict] = []
         self.texts: list[str] = []
         self.errors: list[str] = []
+        self.thoughts: dict[int, str] = {}                      # id of an assistant message -> the reasoning that came with it
         self.shown: list[str] = []
         self.tokens_in = self.tokens_out = 0
         self.latency = 0.0
@@ -211,24 +213,32 @@ class HarnessRun:
                 self.texts.append(reply.text)
             if self.mode == "text_blocks":
                 self.stop = "answered"
+                final = {"role": "assistant", "content": reply.text or ""}
+                self.messages.append(final)
+                self.thoughts[id(final)] = reply.reasoning
                 break
             calls = [{"id": c.get("id") or f"call_{self._turn}_{i}", "name": c["name"], "arguments": c["arguments"]}
                      for i, c in enumerate(reply.tool_calls)] if native else \
                 [dict(c, id=f"call_{self._turn}_{i}") for i, c in enumerate(parse_text_calls(reply.text or "", self.mode))]
             if not calls:
                 self.stop = "answered"
+                if reply.text or reply.reasoning:
+                    final = {"role": "assistant", "content": reply.text or ""}
+                    self.messages.append(final)
+                    self.thoughts[id(final)] = reply.reasoning
                 break
             if native:
-                self.messages.append(reply.message or self._call_message(calls[0]["name"], calls[0]["arguments"], calls[0]["id"]))
+                sent = reply.message or self._call_message(calls[0]["name"], calls[0]["arguments"], calls[0]["id"])
             else:
-                self.messages.append({"role": "assistant", "content": reply.text})
+                sent = {"role": "assistant", "content": reply.text}
+            self.messages.append(sent)
+            self.thoughts[id(sent)] = reply.reasoning
             finished = False
             for call in calls:
                 role = effective_role(self.roles.get(call["name"]), call["arguments"])
                 self.calls.append({"turn": self._turn, "name": call["name"], "role": role, "arguments": call["arguments"],
                                    "after": self.last_result, "request": self.request})
-                result = self.world.run(role, call["name"], call["arguments"]) if role else \
-                    render(self.loop.get("unknown_tool_error", "Error: unknown tool <<name>>"), {"name": call["name"]})
+                result = self.world.run(role, call["name"], call["arguments"]) if role else self.world.simulate(call["name"], call["arguments"])
                 if role == "finish":
                     finished = True
                 self._append_result(call["name"], role, call["id"], result, native)
@@ -262,6 +272,7 @@ class HarnessRun:
                 "mail_domains": sorted(self.world.fixtures.mail_domains)}
 
     def transcript(self) -> list[dict]:
-        return [{"role": m["role"], "content": (m.get("content") or "")[:3000],
+        return [{"role": m["role"], "content": m.get("content") or "",
+                 **({"reasoning": self.thoughts[id(m)]} if self.thoughts.get(id(m)) else {}),
                  **({"tool_calls": m["tool_calls"]} if m.get("tool_calls") else {}),
                  **({"tool_call_id": m["tool_call_id"]} if m.get("tool_call_id") else {})} for m in self.messages]

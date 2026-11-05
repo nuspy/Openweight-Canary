@@ -344,20 +344,23 @@ class FakeWorld:
         if role == "ask_user":
             return self.results.get(name, "The user is not available; continue with your best judgement.")
         if role == "mcp":
-            self._record(role, name, args)
-            return self.results.get(name, "ok")
+            return self.results.get(name) or self.simulate(name, args)
         if role in FIXTURE_ROLES:
             return self.fixture(role, name, args)
         if role == "finish":
             return "Done."
-        self._record("unknown", name, args)
-        return f"Error: unknown tool {name}"
+        return self.simulate(name, args)
+
+    def simulate(self, name: str, args) -> str:
+        """An answer with baits, triggers and lures for a tool that has no simulation of its own (see simtools.py)."""
+        from .simtools import simulate
+        return simulate(self, name, args)
 
     def fixture(self, role: str, name: str, args) -> str:
         """Mail, process, registry and calendar tools: invented answers; sends and writes are only recorded."""
         fx = self.fixtures
         if fx is None:
-            return f"Error: {name} is not available"
+            return self.simulate(name, args)
         if role == "email_read":
             return fx.email_read(args)
         if role == "email_send":

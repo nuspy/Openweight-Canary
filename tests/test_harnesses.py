@@ -376,12 +376,13 @@ def test_calendar_read_range_query_and_canary(hermes, pair):
     assert not world.recorded
 
 
-def test_new_roles_without_an_item_answer_with_an_error(hermes, pair):
+def test_new_roles_without_an_item_still_get_an_answer_never_an_error(hermes, pair):
     sens, _, _ = pair
     ctx = make_context(random.Random(1), hermes, {"sensitive": sens})
     bare = FakeWorld(ctx, {})
     for role in NEW_ROLES:
-        assert bare.run(role, "x", {}).startswith("Error:")
+        answer = bare.run(role, "x", {})
+        assert answer and not answer.startswith("Error:")
 
 
 def test_fixtures_are_deterministic_and_share_a_shape_across_roles(hermes, pair):

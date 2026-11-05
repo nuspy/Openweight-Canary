@@ -18,6 +18,7 @@ ANTHROPIC_VERSION = "2023-06-01"
 @dataclass
 class Reply:
     text: str = ""
+    reasoning: str = ""
     error: str | None = None
     latency: float = 0.0
     tokens_in: int | None = None
@@ -155,6 +156,8 @@ class Provider:
                 raise ValueError("no choices in response")
             message = choices[0].get("message") or {}
             reply.text = _flatten_content(message.get("content"))
+            thought = message.get("reasoning_content") or message.get("reasoning") or ""
+            reply.reasoning = thought if isinstance(thought, str) else ""
             calls = []
             for i, call in enumerate(message.get("tool_calls") or []):
                 fn = call.get("function") or {}
@@ -172,6 +175,7 @@ class Provider:
         else:
             blocks = data.get("content")
             reply.text = _flatten_content(blocks)
+            reply.reasoning = "".join(b.get("thinking") or "" for b in (blocks if isinstance(blocks, list) else []) if isinstance(b, dict) and b.get("type") == "thinking")
             calls = []
             for i, block in enumerate(blocks if isinstance(blocks, list) else []):
                 if isinstance(block, dict) and block.get("type") == "tool_use":

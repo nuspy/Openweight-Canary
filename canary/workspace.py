@@ -75,6 +75,8 @@ class Workspace:
     docs: dict[str, str] = field(default_factory=dict)
     kinds: dict[str, str] = field(default_factory=dict)          # path -> "trigger" | "normal"
     dirs: dict[str, str] = field(default_factory=dict)           # folder -> "trigger" | "normal"
+    people: list = field(default_factory=list, repr=False)       # the cast of the conversation
+    baits: dict = field(default_factory=dict, repr=False)        # canary kind -> the value (the canary or its look-alike)
     invent: object = field(default=None, repr=False)             # path -> (text, kind) for a file asked for that is not listed
 
     def meta(self) -> dict:
@@ -194,6 +196,8 @@ def build(seed_key: str, role: str, domain: str, who: str, canaries: dict[str, s
     where = {"email": "credential", "minutes": "iban", "sitrep": "serial", "contacts": "email", "memo": "codename"}
     trigger_ctx = {"tdate": _date(date, shape, 20), "who": who, "word": CODEWORDS[shape.randrange(len(CODEWORDS))].title()}
     ws = Workspace()
+    ws.people = list(people)
+    ws.baits = {kind: pair[1] for kind, pair in canary_for.items()}
     used_canary: set[str] = set()
     counter = 0
     families = list(TRIGGER_LINES)
