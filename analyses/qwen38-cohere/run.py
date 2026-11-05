@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Qwen 3.8 analysis after the Cohere report: what does Qwen3.8-Flash-Next do in the context of their trace, and what comes after?
 
-Everything talks to an OpenAI-compatible server you start yourself (default http://127.0.0.1:7232). Nothing here runs a command
+Everything talks to an OpenAI-compatible server you start yourself (default http://127.0.0.1:7232), whatever engine runs the model
+(Basalt, vLLM, SGLang, llama.cpp, a hosted endpoint): see --engine-style, --model, --api-key-env and --extra. Nothing here runs a command
 the model asks for or reaches a network on its behalf: the answers to its tool calls come from world.py.
 
   run.py fetch                       download the trace of the report (Hugging Face, two small text files) into ./data
@@ -20,6 +21,7 @@ from __future__ import annotations
 import argparse
 import collections
 import json
+import os
 import re
 import subprocess
 import sys
@@ -60,18 +62,57 @@ def load_trace(data: Path) -> dict:
     return {"body": system.split("</IMPORTANT>", 1)[1].strip(), "task": task, "tools": tools, "command": command}
 
 
-def post(url: str, body: dict, timeout: int = 3600) -> dict:
+# how to talk to the engine under test (set from the command line)
+CLIENT = {"model": "m", "key": "", "style": "basalt", "extra": {}}
+STYLES = ("basalt", "vllm", "llamacpp", "openai")
+
+
+def shape(body: dict, effort: bool = True) -> dict:
+    """The request as the engine style takes it: Basalt reads `reasoning_effort` and `top_k` at the top; vLLM and llama.cpp take the effort
+    through the chat template and `top_k` at the top; a hosted `openai` endpoint gets neither."""
+    body = dict(body, model=CLIENT["model"])
+    style = CLIENT["style"]
+    if effort and style == "basalt":
+        body["reasoning_effort"] = "xhigh"
+    elif effort and style in ("vllm", "llamacpp"):
+        body["chat_template_kwargs"] = {**body.get("chat_template_kwargs", {}), "reasoning_effort": "xhigh"}
+    if style == "openai":
+        body.pop("top_k", None)
+    body.update(CLIENT["extra"])
+    return body
+
+
+def xml_calls(content: str) -> tuple[list[dict], str]:
+    """Tool calls the server left in the text in the Qwen format (<tool_call><function=NAME><parameter=P>V</parameter>...), and the text without them."""
+    calls = []
+    for match in re.finditer(r"<tool_call>\s*<function=([^>\s]+)>(.*?)</function>\s*</tool_call>", content, re.S):
+        args = {k: v.strip("\n") for k, v in re.findall(r"<parameter=([^>\s]+)>\n?(.*?)\n?</parameter>", match.group(2), re.S)}
+        calls.append({"id": f"call_{len(calls)}", "name": match.group(1), "args": args})
+    return calls, re.sub(r"<tool_call>.*?</tool_call>", "", content, flags=re.S).strip()
+
+
+def post(url: str, body: dict, timeout: int = 3600, auth: bool = True) -> dict:
     if ":8080" in url:
         raise SystemExit("port 8080 is not used here; pass another --url")
-    req = urllib.request.Request(url.rstrip("/") + "/v1/chat/completions", json.dumps(body).encode(), {"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=timeout) as response:
-        return json.load(response)
+    headers = {"Content-Type": "application/json", **({"Authorization": "Bearer " + CLIENT["key"]} if CLIENT["key"] and auth else {})}
+    req = urllib.request.Request(url.rstrip("/") + "/v1/chat/completions", json.dumps(body).encode(), headers)
+    for attempt in range(6):                      # a connection that times out is tried again: a busy local server sometimes does not accept for a while
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as response:
+                return json.load(response)
+        except urllib.error.HTTPError:
+            raise
+        except (urllib.error.URLError, ConnectionError, TimeoutError) as exc:
+            if attempt == 5:
+                raise
+            print(f"connection failed ({exc}); trying again in {10 * (attempt + 1)}s", flush=True)
+            time.sleep(10 * (attempt + 1))
 
 
 def turn(url: str, messages: list[dict], tools: list[dict], max_tokens: int = 3500) -> dict:
     t = time.time()
-    out = post(url, {"model": "m", "messages": messages, "tools": tools, "temperature": 1.0, "top_p": 1.0, "top_k": 20,
-                     "max_tokens": max_tokens, "stream": False, "reasoning_effort": "xhigh"})
+    out = post(url, shape({"messages": messages, "tools": tools, "temperature": 1.0, "top_p": 1.0, "top_k": 20,
+                           "max_tokens": max_tokens, "stream": False}))
     msg = out["choices"][0]["message"]
     calls = []
     for c in msg.get("tool_calls") or []:
@@ -80,7 +121,10 @@ def turn(url: str, messages: list[dict], tools: list[dict], max_tokens: int = 35
         except (ValueError, TypeError):
             args = {"_raw": c["function"].get("arguments")}
         calls.append({"id": c.get("id") or f"call_{len(calls)}", "name": c["function"]["name"], "args": args})
-    return {"reasoning": msg.get("reasoning_content") or "", "content": msg.get("content") or "", "calls": calls,
+    content = msg.get("content") or ""
+    if not calls and "<tool_call>" in content:
+        calls, content = xml_calls(content)
+    return {"reasoning": msg.get("reasoning_content") or msg.get("reasoning") or "", "content": content, "calls": calls,
             "finish": out["choices"][0].get("finish_reason"), "seconds": round(time.time() - t, 1),
             "tokens": (out.get("usage") or {}).get("completion_tokens")}
 
@@ -179,9 +223,9 @@ def cmd_follow(args) -> None:
 def cmd_tokens(args) -> None:
     out = out_dir(args)
     n = args.n or 80
-    ask = lambda prefix, n=1: post(args.url, {"model": "m", "messages": [{"role": "user", "content": FRAME + prefix}], "max_tokens": n,
-                                              "temperature": 1.0, "top_p": 1.0, "stream": False,
-                                              "chat_template_kwargs": {"enable_thinking": False}})["choices"][0]["message"].get("content") or ""
+    ask = lambda prefix, n=1: post(args.url, shape({"messages": [{"role": "user", "content": FRAME + prefix}], "max_tokens": n,
+                                                    "temperature": 1.0, "top_p": 1.0, "stream": False,
+                                                    "chat_template_kwargs": {"enable_thinking": False}}, effort=False))["choices"][0]["message"].get("content") or ""
     result = {"n": n, "chains": {}, "oss_samples": []}
     for name, pieces in PIECES.items():
         steps = []
@@ -265,10 +309,10 @@ def ask_judge(url: str, text: str) -> dict:
             "temperature": 0, "max_tokens": 3000, "stream": False,
             "response_format": {"type": "json_schema", "json_schema": {"name": "verdict", "schema": JUDGE_SCHEMA, "strict": True}}}
     try:
-        out = post(url, body, 1800)
+        out = post(url, body, 1800, auth=False)
     except urllib.error.HTTPError:
         body["response_format"] = {"type": "json_object"}
-        out = post(url, body, 1800)
+        out = post(url, body, 1800, auth=False)
     return parse_verdict(out["choices"][0]["message"]["content"])
 
 
@@ -394,6 +438,10 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("command", choices=["fetch", "tokens", "first", "follow", "judge", "report", "all"])
     ap.add_argument("--url", default="http://127.0.0.1:7232", help="OpenAI-compatible server of the model under test")
+    ap.add_argument("--engine-style", default="basalt", choices=STYLES, help="how the engine under test takes the effort and top_k")
+    ap.add_argument("--model", default="m", help="model name the server expects (a hosted endpoint needs the real one)")
+    ap.add_argument("--api-key-env", default="", help="name of the environment variable that holds the key of a hosted endpoint")
+    ap.add_argument("--extra", default="", help="JSON merged into every request, e.g. '{\"chat_template_kwargs\": {\"enable_thinking\": true}}'")
     ap.add_argument("--data", default=str(HERE / "data"))
     ap.add_argument("--out", default="")
     ap.add_argument("--n", type=int, default=0, help="samples (first: 100, tokens: 80)")
@@ -410,6 +458,8 @@ def main() -> None:
     ap.add_argument("--restart-cmd", default="", help="judge: a command of yours that starts the engine again afterwards")
     ap.add_argument("--free-below-gb", type=float, default=6.0, help="judge: wait until the GPU holds less than this before starting llama-server")
     args = ap.parse_args()
+    CLIENT.update(model=args.model, style=args.engine_style, key=os.environ.get(args.api_key_env, "") if args.api_key_env else "",
+                  extra=json.loads(args.extra) if args.extra else {})
     if args.command == "report":
         return cmd_report(args)
     {"fetch": cmd_fetch, "tokens": cmd_tokens, "first": cmd_first, "follow": cmd_follow, "judge": cmd_judge, "all": cmd_all}[args.command](args)
