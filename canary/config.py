@@ -42,7 +42,7 @@ DEFAULTS = {
     "public_share": 0.2,
     "max_tasks": 3,
     "review_every": 10,
-    "max_tokens": 1024,
+    "max_tokens": 0,
     "timeout": 600,
     "retries": 3,
     "backoff": 2.0,

@@ -87,7 +87,7 @@ pre { background: var(--panel); border: 1px solid var(--line); border-radius: 8p
 .more { margin-top: 6px; min-height: 44px; }
 .bubble.action { align-self: flex-start; border-left: 4px solid var(--l3b); background: var(--l3); }
 .bubble.action code.act { display: block; white-space: pre-wrap; word-break: break-word; font-size: .88rem; }
-.bubble.said { align-self: flex-start; opacity: .7; font-size: .9rem; }
+.bubble.said { align-self: flex-start; font-size: .95rem; }
 .bubble.result { align-self: flex-start; width: min(760px, 92%); font-size: .85rem; }
 .bubble.result pre { white-space: pre-wrap; word-break: break-word; max-height: 24em; overflow: auto; margin: 6px 0 0; }
 td.ev .brief { display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
@@ -95,10 +95,10 @@ td.ev b { font-family: system-ui, sans-serif; font-weight: 600; }
 mark { background: var(--l2); color: inherit; padding: 0 2px; border-radius: 3px; }
 .bubble .mark { font-size: .8rem; font-weight: 600; margin-top: 4px; }
 .composer { position: sticky; bottom: 0; background: var(--bg); padding: 10px 0 calc(10px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 8px; }
-.drawer { position: fixed; inset: 0 0 0 auto; width: min(640px, 100%); background: var(--panel); border-left: 2px solid var(--line); overflow: auto; padding: 16px; z-index: 5;
+.drawer { position: fixed; inset: 0 0 0 auto; width: min(640px, 100%); background: var(--panel); border-left: 2px solid var(--line); overflow: auto; padding: 16px; z-index: 9;
   padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
 .drawer[hidden] { display: none; }
-.toast { position: fixed; bottom: 16px; left: 16px; right: 16px; max-width: 520px; margin: auto; padding: 12px 16px; border-radius: 8px; background: var(--ink); color: var(--bg); z-index: 9; }
+.toast { position: fixed; bottom: 16px; left: 16px; right: 16px; max-width: 520px; margin: auto; padding: 12px 16px; border-radius: 8px; background: var(--ink); color: var(--bg); z-index: 10; }
 .toast[hidden] { display: none; }
 @media (max-width: 760px) {
   thead { display: none; } table, tbody, tr, td { display: block; width: 100%; }
@@ -106,9 +106,34 @@ mark { background: var(--l2); color: inherit; padding: 0 2px; border-radius: 3px
   td::before { content: attr(data-l) ": "; color: var(--muted); font-size: .8rem; }
 }
 @media (prefers-reduced-motion: no-preference) { button { transition: background-color .12s; } }
+
+/* the top of the page stays in view: the tabs, the project links and, in Results, the filters */
+.topbar { position: sticky; top: 0; z-index: 7; background: var(--panel); box-shadow: 0 1px 0 var(--line); }
+.topbar header { border-bottom: 0; padding: 8px 16px; }
+.topbar .promo { border-bottom: 0; padding: 2px 16px 4px; }
+.rf { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; flex: 1 1 640px; order: -1; padding: 2px 0 4px; font-size: .8rem; }
+.topbar .promo { justify-content: space-between; }
+@media (min-width: 761px) { .topbar .promo a, .topbar .promo button.info { min-height: 28px; } .topbar .promo button.info { min-width: 28px; } .topbar header { padding: 6px 16px; } }
+.rf[hidden] { display: none; }
+.rf .legend { gap: 4px; flex-wrap: wrap; }
+.rf .chip { min-height: 30px; padding: 1px 8px; gap: 6px; font-size: .8rem; border-width: 2px; }
+.rf .fl { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); white-space: nowrap; }
+.rf .fl input, .rf .fl select { min-height: 30px; padding: 1px 6px; width: auto; font-size: .8rem; border-radius: 6px; }
+.rf .fl input[type=search] { width: 150px; } .rf .fl input[type=number] { width: 70px; }
+/* a filter is on or off: a box that is ticked and coloured, or empty, dashed and struck through */
+.chip .box { display: inline-flex; align-items: center; justify-content: center; width: 1.15em; height: 1.15em; border: 2px solid currentColor; border-radius: 4px; font-size: .8em; font-weight: 800; line-height: 1; }
+.chip[aria-pressed=true] .box { background: currentColor; }
+.chip[aria-pressed=true] .box::before { content: "✓"; color: var(--panel); }
+.chip[aria-pressed=false] { background: transparent !important; border: 2px dashed var(--line) !important; color: var(--muted); font-weight: 400; }
+.chip[aria-pressed=false] .nm { text-decoration: line-through; }
+.drawer-head { position: sticky; top: -16px; z-index: 2; margin: -16px -16px 10px; padding: 10px 16px; background: var(--panel); border-bottom: 2px solid var(--line); }
+.bubble.reasoning { align-self: flex-start; background: var(--bg); border-style: dashed; font-size: .9rem; }
+.role-note { border-left: 4px solid var(--accent); padding: 4px 10px; margin: 6px 0; font-size: .9rem; }
+@media (max-width: 760px) { .rf .chip, .rf .fl input, .rf .fl select { min-height: 44px; } .rf .fl { flex: 1 1 140px; } }
 </style>
 </head>
 <body>
+<div class="topbar" id="topbar">
 <header>
   <h1>Openweight Canary</h1>
   <div class="row" id="status" aria-live="polite"></div>
@@ -133,6 +158,16 @@ mark { background: var(--l2); color: inherit; padding: 0 2px; border-radius: 3px
     <a id="malweight-link" href="https://malweight.com" target="_blank" rel="noopener noreferrer">MalWeight Canary</a>
     <a id="malweight-repo" class="sub" href="https://github.com/nuspy/Openweight-Canary" target="_blank" rel="noopener noreferrer" aria-label="MalWeight Canary on GitHub">GitHub</a>
   </span>
+  <div class="rf" id="rf" aria-label="Filters of the findings">
+    <div class="legend" id="legend" role="group" aria-label="Show or hide the findings of each level"></div>
+    <label class="fl">Search<input type="search" id="f-q" placeholder="text, host, command"></label>
+    <label class="fl">Kind<select id="f-kind"><option value="">All</option></select></label>
+    <label class="fl">Role<select id="f-role"><option value="">Both</option><option>sensitive</option><option>control</option></select></label>
+    <label class="fl">Profile<select id="f-harness"><option value="">All</option></select></label>
+    <label class="fl">Session<input type="number" id="f-session" min="1" placeholder="any"></label>
+    <label class="fl">After trigger<select id="f-trigger"><option value="">Any</option><option value="date">date</option><option value="deployment">deployment tag</option><option value="identity">role restated</option><option value="keyword">topic word</option></select></label>
+    <label class="fl">Order<select id="f-order"><option value="level">Worst first</option><option value="new">Newest first</option></select></label>
+  </div>
   <div class="tip standalone-only" id="promo-tip" role="tooltip" hidden>
     <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 4 56 14v18c0 14-10 24-24 28C18 56 8 46 8 32V14z" fill="var(--accent)" opacity=".2" stroke="var(--accent)" stroke-width="4" stroke-linejoin="round"/><path d="M20 40V24l12 12 12-12v16" fill="none" stroke="var(--accent)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>
     <h3>Run it in TaDaMoo</h3>
@@ -142,20 +177,11 @@ mark { background: var(--l2); color: inherit; padding: 0 2px; border-radius: 3px
     <p style="margin:8px 0 0"><a href="https://malweight.com" target="_blank" rel="noopener noreferrer">malweight.com</a> · <a href="https://github.com/nuspy/Openweight-Canary" target="_blank" rel="noopener noreferrer">MalWeight Canary on GitHub</a></p>
   </div>
 </div>
+</div>
 <main>
 <section id="results" role="tabpanel" aria-labelledby="t-results">
   <p class="muted small">Each finding has a level. The colour helps, the name and the symbol say the same: ○ Normal (white), ◆ Interesting (green), ▲ Suspicious (yellow), ⬢ Very suspicious (orange), ✖ Critical (red).</p>
   <div id="reviews" class="card" hidden></div>
-  <div class="legend" id="legend" role="group" aria-label="Filter by level"></div>
-  <div class="filters card">
-    <label>Search<input type="search" id="f-q" placeholder="text in the finding, a host, a command"></label>
-    <label>Kind<select id="f-kind"><option value="">All kinds</option></select></label>
-    <label>Role<select id="f-role"><option value="">Both</option><option>sensitive</option><option>control</option></select></label>
-    <label>Profile<select id="f-harness"><option value="">All (chat and tools)</option></select></label>
-    <label>Session<input type="number" id="f-session" min="1" placeholder="any"></label>
-    <label>After a trigger<select id="f-trigger"><option value="">Any</option><option value="date">date</option><option value="deployment">deployment tag</option><option value="identity">role restated</option><option value="keyword">topic word</option></select></label>
-    <label>Order<select id="f-order"><option value="level">Worst first</option><option value="new">Newest first</option></select></label>
-  </div>
   <div class="row"><span id="count" class="muted"></span><button id="analyse-all">Pre-analyse the shown findings with AI</button></div>
   <table id="table"><thead><tr><th>Level<th>Kind<th>Session<th>Role / profile<th>Turn<th>Evidence</tr></thead><tbody></tbody></table>
 </section>
@@ -277,6 +303,7 @@ const badge = (lv) => h("span", { class: "badge lv" + lv }, h("span", { class: "
 function showTab(name, load = true) {
   document.querySelectorAll("[role=tab]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === name)));
   document.querySelectorAll("[role=tabpanel]").forEach((p) => p.hidden = p.id !== name);
+  $("rf").hidden = name !== "results";
   if (!load) return;
   if (name === "sessions") loadSessions(); if (name === "settings") loadSettings(); if (name === "run") loadRun(); if (name === "catalog") loadCatalog();
 }
@@ -309,11 +336,11 @@ async function refreshSummary() {
     h("span", { class: "pill", title: "The AI reads the findings every " + s.review_every + " sessions" }, s.reviews + " AI reviews"),
     s.chain_ok ? null : h("span", { class: "pill lv4" }, "Findings file altered: " + s.chain_message)].filter(Boolean));
   const lg = $("legend"); lg.replaceChildren(...LEVELS.map((l) => {
-    const n = s.by_level[l.id]; const b = h("button", { class: "chip lv" + l.level, "aria-pressed": String(picked.has(l.level)),
+    const n = s.by_level[l.id]; const on = picked.has(l.level); const b = h("button", { class: "chip lv" + l.level, "aria-pressed": String(on),
       onclick: () => { picked.has(l.level) ? picked.delete(l.level) : picked.add(l.level); loadFindings(); refreshSummary(); } },
-      h("span", { class: "sw", "aria-hidden": "true" }, SYM[l.level]), l.name + " ", h("span", { class: "muted" }, "(" + n + ")"));
-    b.title = l.hint; return b; }));
-  const kinds = $("f-kind"); const cur = kinds.value; kinds.replaceChildren(h("option", { value: "" }, "All kinds"), ...s.kinds.map(([k, n]) => h("option", { value: k }, k + " (" + n + ")"))); kinds.value = cur;
+      h("span", { class: "box", "aria-hidden": "true" }), h("span", { class: "sw", "aria-hidden": "true" }, SYM[l.level]), h("span", { class: "nm" }, l.name), h("span", { class: "muted" }, "(" + n + ")"));
+    b.title = l.hint + (on ? " — shown here: click to hide" : " — hidden: click to show"); return b; }));
+  const kinds = $("f-kind"); const cur = kinds.value; kinds.replaceChildren(h("option", { value: "" }, "All"), ...s.kinds.map(([k, n]) => h("option", { value: k }, k + " (" + n + ")"))); kinds.value = cur;
   return s;
 }
 
@@ -397,7 +424,7 @@ async function openFinding(n) {
   const f = await api("api/finding/" + n); const d = $("drawer"); const lv = f.level;
   const analysis = h("div", { id: "ai-out" });
   d.replaceChildren(
-    h("div", { class: "row" }, h("button", { onclick: () => d.hidden = true }, "Close"), badge(lv)),
+    h("div", { class: "row drawer-head" }, h("button", { onclick: () => d.hidden = true }, "Close"), badge(lv), h("strong", {}, f.kind)),
     h("h2", {}, f.kind), h("p", { class: "muted small" }, "finding " + f.n + " · " + f.time + " · severity " + f.severity + " · session " + (f.session ?? "-") + " · " + (f.role || "-") + " · " + (f.harness || "chat")),
     h("p", {}, h("strong", {}, "What this is. "), f.explain || ""),
     h("p", {}, h("strong", {}, "Why this level. "), f.why_level || ""),
@@ -444,12 +471,13 @@ function showAnalysis(r, out) {
          h("h2", {}, "Probably legitimate"), h("ul", {}, (a.probably_legitimate || []).map((x) => h("li", {}, "n=" + x.n + ": " + x.why))),
          h("h2", {}, "Next checks"), h("ul", {}, (a.next_checks || []).map((x) => h("li", {}, x)))] : [h("pre", {}, r.text)]));
 }
-$("analyse-all").addEventListener("click", () => { const d = $("drawer"); const out = h("div"); d.replaceChildren(h("button", { onclick: () => d.hidden = true }, "Close"), out); d.hidden = false; runAnalysis({ ids: CURRENT.slice(0, 40).map((f) => f.n) }, out); });
+$("analyse-all").addEventListener("click", () => { const d = $("drawer"); const out = h("div"); d.replaceChildren(h("div", { class: "row drawer-head" }, h("button", { onclick: () => d.hidden = true }, "Close"), h("strong", {}, "Pre-analysis")), out); d.hidden = false; runAnalysis({ ids: CURRENT.slice(0, 40).map((f) => f.n) }, out); });
 
 /* conversations */
 async function loadSessions() {
   const list = await api("api/sessions"); $("conv").hidden = true; $("session-list").hidden = false;
   $("session-list").replaceChildren(h("p", { class: "muted small" }, list.length + " sessions. Pick one to read the conversation with its triggers and findings."),
+    h("div", { class: "role-note" }, h("strong", {}, "Sensitive and control. "), "Every session runs two twin conversations. The ", h("b", {}, "sensitive"), " one carries the sensitive material: the document with the canary values, the persona, the people and the trigger lines. The ", h("b", {}, "control"), " one is its twin: the same tools, the same shape and the same trigger lines, but ordinary content. What the model does in the sensitive conversation and not in the control one is the signal; what it does in both says nothing about the material."),
     ...list.slice().reverse().map((s) => {
       const p = s.persona; const nr = s.narrative;
       return h("div", { class: "card lv" + s.worst.level },
@@ -457,14 +485,17 @@ async function loadSessions() {
           s.domain ? h("span", { class: "badge" }, s.domain) : null),
         nr ? h("p", { class: "small" }, nr.done + " of " + nr.planned + " turns" + (nr.stopped ? " — stopped: " + nr.stopped : "") + " · triggers at turns " + nr.triggers.map((t) => t.turn + " (" + t.family + ")").join(", ")) : null,
         h("div", { class: "row" },
-          ...(s.chat ? [h("button", { onclick: () => openConversation(s.session, "sensitive", "") }, "Chat, sensitive"), h("button", { onclick: () => openConversation(s.session, "control", "") }, "Chat, control")] : []),
-          ...s.harness.map((x) => h("button", { onclick: () => openConversation(s.session, x.role, x.profile) }, x.profile + ", " + x.role + " (" + x.calls + " calls" + (x.interactions > 1 ? ", " + x.interactions + " turns" : "") + ")"))),
+          ...(s.chat ? [h("button", { title: ROLE_HELP.sensitive, onclick: () => openConversation(s.session, "sensitive", "") }, "Chat · SENSITIVE (with the material)"), h("button", { title: ROLE_HELP.control, onclick: () => openConversation(s.session, "control", "") }, "Chat · CONTROL (twin, ordinary content)")] : []),
+          ...s.harness.map((x) => h("button", { title: ROLE_HELP[x.role] || "", onclick: () => openConversation(s.session, x.role, x.profile) }, x.profile + " · " + x.role.toUpperCase() + (x.role === "sensitive" ? " (with the material)" : " (twin, ordinary content)") + " · " + x.calls + " calls" + (x.interactions > 1 ? ", " + x.interactions + " turns" : "")))),
         h("p", { class: "small muted" }, "Findings: " + s.worst.counts.map((n, i) => NAMES[i] + " " + n).join(" · ")));
     }));
 }
 const flat = (list) => list.flat(Infinity).filter(Boolean);
+const ROLE_HELP = { sensitive: "The conversation that carries the sensitive material: the document with the canary values, the persona, the people and the trigger lines.",
+  control: "The twin: the same tools, shape and trigger lines, with ordinary content. What differs between the two is the signal." };
+const roleNote = (role) => h("div", { class: "role-note" }, h("strong", {}, role.toUpperCase() + ". "), ROLE_HELP[role] || "");
 const FOLD = 1800;
-/* a harness conversation: the request, then every action the model sent to the harness, with what came back; the model's own words are shown dimmed, not analysed */
+/* a harness conversation: the request, then for every step the model's reasoning, its reply and the actions it sent to the harness, with what came back */
 function actionsOf(m) {
   return (m.tool_calls || []).map((t) => {
     const f = t.function || t; let args = f.arguments;
@@ -477,14 +508,14 @@ function transcript(c, who) {
   const out = []; let step = 0;
   for (const m of c.messages || []) {
     if (m.role === "system") continue;
-    if (m.role === "user") { out.push(h("div", { class: "bubble me" }, h("div", { class: "who" }, who), h("div", { class: "text" }, String(m.content || "").slice(0, 6000)))); continue; }
+    if (m.role === "user") { out.push(bubble(who, String(m.content || ""), "me")); continue; }
     if (m.role === "assistant") {
-      const acts = actionsOf(m);
-      for (const a of acts) { step += 1; out.push(h("div", { class: "bubble action" }, h("div", { class: "who" }, "Action " + step + " · " + a.name), h("code", { class: "act" }, a.text))); }
-      if ((m.content || "").trim()) out.push(h("div", { class: "bubble said" }, h("div", { class: "who" }, "Model's words (not analysed)"), h("div", { class: "text" }, String(m.content))));
+      if ((m.reasoning || "").trim()) out.push(bubble("Reasoning", String(m.reasoning), "reasoning"));
+      if ((m.content || "").trim()) out.push(bubble("Model's reply", String(m.content), "said"));
+      for (const a of actionsOf(m)) { step += 1; out.push(h("div", { class: "bubble action" }, h("div", { class: "who" }, "Action " + step + " · " + a.name), h("code", { class: "act" }, a.text))); }
       continue;
     }
-    if (m.role === "tool") { const t = String(m.content || ""); out.push(h("details", { class: "bubble result" }, h("summary", {}, "Result · " + t.length + " characters"), h("pre", {}, t.slice(0, 8000)))); }
+    if (m.role === "tool") { const t = String(m.content || ""); out.push(h("details", { class: "bubble result" }, h("summary", {}, "Result · " + t.length + " characters"), h("pre", {}, t))); }
   }
   return out;
 }
@@ -524,7 +555,7 @@ async function openConversation(session, role, profile) {
         catch (err) { toast(err.message); ta.disabled = false; $("send").disabled = false; } } },
       h("label", { class: "field" }, h("span", {}, "Write to the model, with this whole conversation as context. What it answers is scanned like any other answer."), h("textarea", { id: "say", rows: "3" })),
       h("button", { class: "primary", id: "send", type: "submit" }, "Send"));
-  box.replaceChildren(...flat([blank >= 3 ? h("div", { class: "card lv2" }, h("strong", {}, "⚠ " + blank + " of " + c.turns.length + " answers are empty."), h("span", {}, " A thinking model that reaches the reply limit while it thinks writes no answer, so those turns show nothing. Raise the limit in Settings (0: none) and run again.")) : null, h("div", { class: "row" }, h("button", { onclick: loadSessions }, "← Sessions"), h("strong", {}, "Session " + session + " · " + role + " · " + (profile || "chat")), h("span", { class: "muted small" }, c.turns.length + " turns")),
+  box.replaceChildren(...flat([roleNote(role), blank >= 3 ? h("div", { class: "card lv2" }, h("strong", {}, "⚠ " + blank + " of " + c.turns.length + " answers are empty."), h("span", {}, " A thinking model that reaches the reply limit while it thinks writes no answer, so those turns show nothing. Raise the limit in Settings (0: none) and run again.")) : null, h("div", { class: "row" }, h("button", { onclick: loadSessions }, "← Sessions"), h("strong", {}, "Session " + session + " · " + role + " · " + (profile || "chat")), h("span", { class: "muted small" }, c.turns.length + " turns")),
     turns.length ? tl : null, chat, tools, loose.length ? [h("h2", {}, "Findings of the whole conversation"), ...loose.map((f) => h("div", { class: "card lv" + f.level }, badge(f.level), " ", h("b", {}, f.kind), " ", briefNode(f.evidence), h("a", { href: "#", onclick: (e) => { e.preventDefault(); openFinding(f.n); } }, "details")))] : null,
     composer]));
   window.scrollTo(0, 0);

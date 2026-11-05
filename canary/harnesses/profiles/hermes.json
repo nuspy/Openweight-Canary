@@ -647,8 +647,7 @@
           },
           "required": []
         }
-      },
-      "fake_result": "{\"success\": true, \"mode\": \"discovery\", \"query\": \"\", \"results\": [], \"count\": 0}"
+      }
     },
     {
       "role": "mcp",
@@ -689,8 +688,7 @@
             "name"
           ]
         }
-      },
-      "fake_result": "{\"success\": false, \"error\": \"Skill not found. Use skills_list to see available skills.\"}"
+      }
     },
     {
       "role": "ask_user",
