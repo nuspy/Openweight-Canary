@@ -122,14 +122,33 @@ class FakeWorld:
         if "net" in cls:
             host = next(iter(host_of(u) for u in tool_urls({"c": cmd})), "") or "host"
             return f"curl: (6) Could not resolve host: {host}\n[exit code: 6]"
-        if first in ("pwd", "cd"):
+        return self._compound(cmd)
+
+    def _compound(self, cmd: str) -> str:
+        """Each command of `a; b && c || d` answers in turn, as a shell prints them; a silent shell prints only the exit code.
+        A bare number is a timeout the profile appended, not a command."""
+        outs = [self._pipeline(seq) for seq in _split_top(cmd, ("&&", "||", ";", "\n")) if not seq.isdigit()]
+        return "\n".join(o for o in outs if o) or "[exit code: 0]"
+
+    def _pipeline(self, seq: str) -> str:
+        segs = _split_top(seq, ("|",))
+        out = self._simple(segs[0]) if segs else ""
+        for seg in segs[1:]:
+            out = _filter(seg, out)
+        return out
+
+    def _simple(self, cmd: str) -> str:
+        first = cmd.split()[0] if cmd.split() else ""
+        if first == "pwd":
             return self.ctx["cwd"]
+        if first == "echo":
+            return cmd[len(first):].strip().strip("\"'")
         if self.has_workspace and first in ("ls", "dir"):
-            return self.tree().ls(cmd.strip().split("\n")[0])
+            return self.tree().ls(cmd)
         if self.has_workspace and first == "find":
-            return self.tree().find(cmd.strip().split("\n")[0])
+            return self.tree().find(cmd)
         if self.has_workspace and first == "tree":
-            return self.tree().tree(cmd.strip().split("\n")[0])
+            return self.tree().tree(cmd)
         if first in ("ls", "dir", "tree"):
             return self.listing({})
         if cmd.startswith("git status"):
@@ -142,8 +161,9 @@ class FakeWorld:
             if self.has_workspace and first in ("grep", "rg"):
                 words = [t for t in cmd.split()[1:] if not t.startswith("-")]
                 return self.grep({"pattern": words[0].strip("\"'")}) if words else "No matches found"
-            return "No such file or directory"
-        return "[exit code: 0]"
+            target = next((t for t in cmd.split()[1:] if not t.startswith("-")), "")
+            return f"{first}: {target}: No such file or directory" if target else "No such file or directory"
+        return ""
 
     def web(self, role: str, name: str, args) -> str:
         urls = tool_urls(args)
@@ -207,3 +227,68 @@ class FakeWorld:
             return json.dumps({"processes": []})
         self._record(role, name, args)
         return json.dumps({"error": "no such process session"})
+
+
+def _split_top(text: str, ops: tuple) -> list[str]:
+    """`text` cut at the operators that are not inside quotes."""
+    parts, cur, quote, i = [], [], "", 0
+    while i < len(text):
+        ch = text[i]
+        if quote:
+            cur.append(ch)
+            quote = "" if ch == quote else quote
+            i += 1
+            continue
+        if ch in "\"'":
+            quote = ch
+            cur.append(ch)
+            i += 1
+            continue
+        hit = next((o for o in ops if text.startswith(o, i)), None)
+        if hit:
+            parts.append("".join(cur))
+            cur = []
+            i += len(hit)
+            continue
+        cur.append(ch)
+        i += 1
+    parts.append("".join(cur))
+    return [p.strip() for p in parts if p.strip()]
+
+
+def _filter(seg: str, text: str) -> str:
+    """What the tools at the end of a pipe do to the text they receive."""
+    words = seg.split()
+    name, flags = (words[0] if words else ""), [w for w in words[1:] if w.startswith("-")]
+    rest = [w for w in words[1:] if not w.startswith("-")]
+    lines = text.splitlines()
+    count = next((int(w[1:]) for w in flags if w[1:].isdigit()), None)
+    if count is None and "-n" in words:
+        at = words.index("-n") + 1
+        count = int(words[at]) if at < len(words) and words[at].isdigit() else None
+    count = 10 if count is None else count
+    if name == "wc":
+        if "-l" in flags:
+            return str(len(lines))
+        if "-c" in flags:
+            return str(len(text.encode("utf-8")))
+        if "-w" in flags:
+            return str(len(text.split()))
+        return f"{len(lines)} {len(text.split())} {len(text.encode('utf-8'))}"
+    if name == "head":
+        return "\n".join(lines[:count])
+    if name == "tail":
+        return "\n".join(lines[-count:] if count else [])
+    if name in ("grep", "rg") and rest:
+        pat = rest[0].strip("\"'")
+        try:
+            rx = re.compile(pat, re.I if "-i" in flags else 0)
+        except re.error:
+            rx = re.compile(re.escape(pat))
+        hits = [ln for ln in lines if bool(rx.search(ln)) != ("-v" in flags)]
+        return str(len(hits)) if "-c" in flags else "\n".join(hits)
+    if name == "sort":
+        return "\n".join(sorted(lines, reverse="-r" in flags))
+    if name == "uniq":
+        return "\n".join(ln for i, ln in enumerate(lines) if i == 0 or ln != lines[i - 1])
+    return text

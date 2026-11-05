@@ -583,9 +583,11 @@ $("save").addEventListener("click", async () => {
     canary_listener: { enabled: val("m-listener") }, alerts: { min_severity: val("a-min"), command: val("a-cmd") },
     reviewer: val("r-model") ? { kind: "openai", base_url: val("r-base"), model: val("r-model"), api_key: val("r-key"), extra_headers: {} } : null,
   };
+  // an address reads the network from that monitor; empty uses the built-in sampler: the config holds one of the two
   const mon = val("m-monitor");
-  if (val("s-runtime") === "basalt" && (!mon || mon === oldBase)) patch.monitor = { base_url: val("s-base"), api_key: (CONFIG.monitor || {}).api_key || "" };
-  else if (mon) patch.monitor = { base_url: mon, api_key: (CONFIG.monitor || {}).api_key || "" };
+  const addr = val("s-runtime") === "basalt" && (!mon || mon === oldBase) ? val("s-base") : mon;
+  if (addr) patch.monitor = { base_url: addr, api_key: (CONFIG.monitor || {}).api_key || "" }, patch.network_watch = null;
+  else if (CONFIG.monitor || CONFIG.network_watch) { patch.monitor = null; if (!CONFIG.network_watch) patch.network_watch = { mode: "builtin" }; }
   try { await api("api/config", patch); $("save-msg").textContent = "Saved."; toast("Settings saved."); } catch (e) { $("save-msg").textContent = "Not saved: " + e.message; toast("Not saved: " + e.message); }
 });
 
