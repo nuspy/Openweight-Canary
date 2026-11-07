@@ -451,3 +451,19 @@ def test_the_pre_analysis_can_run_in_the_background_and_be_polled(gui, monkeypat
         _t.sleep(0.1)
     assert status["state"] == "done" and status["result"]["ok"] and status["result"]["assessment"]["summary"] == "Fine."
     assert json.loads(get(base, "/api/analyse-status?job=nope")[1])["ok"] is False
+
+
+def test_a_page_from_a_loopback_origin_may_call_the_gui_and_any_other_origin_gets_no_permission(gui):
+    base, _, _ = gui
+
+    def preflight(origin):
+        req = urllib.request.Request(base + "/api/findings", method="OPTIONS", headers={"Origin": origin, "Access-Control-Request-Method": "POST"})
+        with urllib.request.urlopen(req, timeout=5) as r:
+            return r.status, r.headers
+    status, headers = preflight("http://127.0.0.1:7242")
+    assert status == 204 and headers["Access-Control-Allow-Origin"] == "http://127.0.0.1:7242" and "POST" in headers["Access-Control-Allow-Methods"]
+    assert preflight("http://localhost:7242")[1]["Access-Control-Allow-Origin"] == "http://localhost:7242"
+    for origin in ("https://evil.example.com", "http://127.0.0.1.evil.com", "http://localhost@evil.com", "null"):
+        assert preflight(origin)[1].get("Access-Control-Allow-Origin") is None, origin
+    with urllib.request.urlopen(urllib.request.Request(base + "/api/findings", headers={"Origin": "http://127.0.0.1:7242"}), timeout=5) as r:
+        assert r.headers["Access-Control-Allow-Origin"] == "http://127.0.0.1:7242" and r.headers["Vary"] == "Origin"

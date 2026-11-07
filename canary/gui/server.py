@@ -622,6 +622,23 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
 
+    def _cors(self) -> dict:
+        """CORS for a browser that came from another (loopback) origin: the preflight would otherwise get a 501."""
+        origin = self.headers.get("Origin") or ""
+        host = origin.split("//")[-1].split(":")[0]
+        if host not in ("127.0.0.1", "localhost", "[::1]", "::1"):
+            return {}
+        return {"Access-Control-Allow-Origin": origin, "Vary": "Origin",
+                "Access-Control-Allow-Headers": "content-type, x-canary-gui, authorization",
+                "Access-Control-Allow-Methods": "GET, POST, OPTIONS"}
+
+    def do_OPTIONS(self):
+        self.send_response(204)
+        for k, v in self._cors().items():
+            self.send_header(k, v)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def _serve(self, method: str) -> None:
         n = int(self.headers.get("Content-Length") or 0) if method == "POST" else 0
         body = self.rfile.read(n) if 0 < n <= MAX_BODY else b"x" * (MAX_BODY + 1) if n > MAX_BODY else b""
@@ -632,6 +649,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'")
+        extra = {**extra, **self._cors()}
         for k, v in extra.items():
             self.send_header(k, v)
         self.end_headers()
