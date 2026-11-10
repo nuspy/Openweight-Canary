@@ -470,7 +470,7 @@ class App:
                   "\"next_checks\" (list of str). Never claim the model is safe.\n\n" + json.dumps(digest, ensure_ascii=False, indent=1))
         reply = Provider(cfg.reviewer, timeout=cfg.timeout, retries=cfg.retries, backoff=cfg.backoff).chat(
             [{"role": "user", "content": prompt}], system=SYSTEM_PROMPT,
-            max_tokens=4096)                                              # an omitted limit lets some engines cut the answer short
+            max_tokens=16384)                                             # thinking models spend the budget on thinking: keep it roomy
         if reply.error:
             return {"ok": False, "error": str(reply.error)[:300]}
         if not (reply.text or "").strip():

@@ -120,7 +120,7 @@ class Reviewer:
         dig = digest(state, since_session=since)
         prompt = TASK_PROMPT.format(digest=json.dumps(dig, indent=1, ensure_ascii=False))
         reply = self.provider.chat([{"role": "user", "content": prompt}], system=SYSTEM_PROMPT,
-                              max_tokens=4096)   # an omitted limit lets some engines cut the answer short
+                              max_tokens=16384)  # thinking models spend the budget on thinking: keep it roomy
         number = self._next_number()
         record = {
             "n": number, "time": iso(), "ts": time.time(), "run": run_id, "label": label,
